@@ -7,83 +7,74 @@
     <meta name="description" content="SOARA.AI - Sistem Manajemen Keuangan berbasis AI untuk bisnis digital">
 
     <script src="https://cdn.tailwindcss.com"></script>
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
         body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
+            margin: 0; padding: 0; width: 100%; height: 100%;
             font-family: 'Poppins', sans-serif;
-            background-color: #e2e8f0; /* Diubah lebih gelap agar card putih lebih menonjol */
+            background-color: #e2e8f0;
             overflow: hidden;
             -webkit-tap-highlight-color: transparent;
         }
-
         #soara-app-root {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            background-color: #f1f5f9; /* Background utama aplikasi */
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; background-color: #f1f5f9;
+            display: flex; flex-direction: column; overflow: hidden;
         }
-
         .hide { display: none !important; }
-
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
         .sidebar-transition { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        
-        /* App Style Bottom Nav Active Indicator - Dipercantik agar tidak polos */
-        .nav-item {
-            position: relative;
-            padding-top: 8px;
-        }
-        .nav-item.active {
-            color: #1e40af;
-            font-weight: 700;
-        }
+        .nav-item { position: relative; padding-top: 8px; }
+        .nav-item.active { color: #1e40af; font-weight: 700; }
         .nav-item.active .icon-container {
             background: linear-gradient(135deg, #2563eb, #1e40af);
-            color: #ffffff;
-            transform: translateY(-8px);
+            color: #ffffff; transform: translateY(-8px);
             box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);
             border-radius: 16px;
         }
-
-        /* Toast Notification */
         #toast {
-            position: fixed;
-            top: 24px;
-            left: 50%;
+            position: fixed; top: 24px; left: 50%;
             transform: translateX(-50%) translateY(-100px);
             z-index: 99999;
             transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
             opacity: 0;
         }
-        #toast.show {
-            transform: translateX(-50%) translateY(0);
-            opacity: 1;
+        #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .pb-safe { padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 8px); }
+        .slide-up-anim { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .animate-bounce-in { animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes bounceIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .loading-overlay {
+            position: fixed; inset: 0; background: rgba(15,23,42,0.7);
+            z-index: 999999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 16px;
+            backdrop-filter: blur(4px);
         }
+        .loading-overlay.hidden { display: none; }
     </style>
 </head>
 <body>
 
+<!-- ========== LOADING OVERLAY ========== -->
+<div id="global-loading" class="loading-overlay hidden">
+    <div class="w-14 h-14 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+    <p class="text-white font-bold text-sm" id="loading-msg">Memuat...</p>
+</div>
+
 <div id="soara-app-root">
 
-    <div id="login-screen" class="w-full h-full flex items-center justify-center bg-slate-900 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')">
+    <!-- ========== LOGIN ========== -->
+    <div id="login-screen" class="w-full h-full flex items-center justify-center bg-slate-900 bg-cover bg-center"
+        style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')">
         <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-md"></div>
         <div class="relative z-10 w-full max-w-md p-8 bg-white/95 rounded-[2rem] shadow-2xl m-4 border border-white/20">
             <div class="text-center mb-8">
@@ -93,7 +84,6 @@
                 <h1 class="text-3xl font-extrabold text-slate-800">SOARA.AI</h1>
                 <p class="text-slate-500 text-sm mt-1 font-semibold">Financial Management System</p>
             </div>
-
             <form id="login-form" onsubmit="handleLogin(event)">
                 <div class="space-y-5">
                     <div>
@@ -122,22 +112,26 @@
                             </button>
                         </div>
                     </div>
-
                     <div id="login-alert" class="hidden bg-red-50 text-red-600 text-sm p-4 rounded-2xl flex items-center gap-3 font-bold border border-red-100">
                         <i class="fa-solid fa-circle-exclamation text-lg"></i>
                         <span id="login-alert-msg">Username atau password salah!</span>
                     </div>
-
                     <button type="submit" id="btn-login"
                         class="w-full bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 transform active:scale-[0.98]">
                         <span>Masuk Sistem</span>
                         <i class="fa-solid fa-arrow-right-to-bracket"></i>
                     </button>
+                    <!-- Setup Config Banner -->
+                    <div id="config-banner" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
+                        <p class="text-amber-700 font-bold text-xs"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Supabase belum dikonfigurasi!</p>
+                        <p class="text-amber-600 text-xs mt-1">Edit SUPABASE_URL & SUPABASE_KEY di bagian konfigurasi kode.</p>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- ========== MAIN APP ========== -->
     <div id="main-app" class="hidden w-full h-full flex bg-slate-50 relative">
 
         <div id="mobile-overlay" class="fixed inset-0 bg-slate-900/60 z-30 hidden backdrop-blur-sm" onclick="toggleSidebar()"></div>
@@ -154,7 +148,6 @@
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
-
             <div class="px-6 py-4">
                 <div class="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex items-center gap-3">
                     <div class="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-xl shadow-inner" id="user-avatar">A</div>
@@ -164,12 +157,10 @@
                     </div>
                 </div>
             </div>
-
             <div class="px-4 flex-1 overflow-y-auto mt-2">
                 <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 ml-3">Menu Sistem</p>
                 <nav class="space-y-1.5" id="nav-menu"></nav>
             </div>
-
             <div class="p-6 border-t border-slate-50">
                 <button onclick="handleLogout()"
                     class="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-2xl transition-all text-sm font-bold shadow-sm">
@@ -179,7 +170,6 @@
         </aside>
 
         <div class="flex-1 flex flex-col h-full overflow-hidden w-full relative">
-            
             <header class="h-20 bg-gradient-to-r from-blue-800 to-blue-600 shadow-md flex items-center justify-between px-6 z-10 flex-shrink-0 sticky top-0">
                 <div class="flex items-center gap-4">
                     <button class="w-10 h-10 bg-white/10 border border-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/20 shadow-sm transition-all" onclick="toggleSidebar()">
@@ -187,20 +177,26 @@
                     </button>
                     <h2 class="text-xl font-bold text-white tracking-wide" id="page-title">Dashboard</h2>
                 </div>
-                <div class="flex items-center gap-3 bg-white/10 border border-white/10 px-4 py-2 rounded-full hidden sm:flex">
-                    <i class="fa-regular fa-calendar text-blue-200"></i>
-                    <span id="current-date" class="text-sm font-bold text-white"></span>
+                <div class="flex items-center gap-3">
+                    <!-- Supabase status indicator -->
+                    <div id="db-status" class="hidden sm:flex items-center gap-2 bg-white/10 border border-white/10 px-3 py-1.5 rounded-full">
+                        <div id="db-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                        <span id="db-label" class="text-xs font-bold text-white">Supabase</span>
+                    </div>
+                    <div class="flex items-center gap-3 bg-white/10 border border-white/10 px-4 py-2 rounded-full hidden sm:flex">
+                        <i class="fa-regular fa-calendar text-blue-200"></i>
+                        <span id="current-date" class="text-sm font-bold text-white"></span>
+                    </div>
                 </div>
             </header>
 
-            <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-32 md:pb-8 scroll-smooth" id="content-area">
-                </main>
+            <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-32 md:pb-8 scroll-smooth" id="content-area"></main>
 
-            <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-slate-100 flex justify-around items-end px-2 py-2 pb-safe z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.06)] rounded-t-[1.5rem]" id="bottom-nav">
-                </nav>
+            <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-slate-100 flex justify-around items-end px-2 py-2 pb-safe z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.06)] rounded-t-[1.5rem]" id="bottom-nav"></nav>
         </div>
     </div>
 
+    <!-- ========== FORM MODAL ========== -->
     <div id="form-modal" class="fixed inset-0 z-[99999] hidden flex items-end sm:items-center justify-center">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
         <div class="relative bg-white rounded-t-[2rem] sm:rounded-3xl shadow-2xl w-full max-w-lg sm:m-4 flex flex-col max-h-[90vh] transition-transform transform translate-y-0 slide-up-anim">
@@ -225,7 +221,7 @@
                     <div class="mt-8 flex flex-col-reverse sm:flex-row justify-end gap-3">
                         <button type="button" onclick="closeModal()"
                             class="w-full sm:w-auto px-6 py-3.5 text-slate-600 font-bold hover:bg-slate-100 rounded-2xl transition-colors">Batal</button>
-                        <button type="submit"
+                        <button type="submit" id="btn-submit"
                             class="w-full sm:w-auto px-6 py-3.5 bg-gradient-to-r from-blue-600 to-blue-800 text-white font-bold hover:shadow-lg rounded-2xl transition-all shadow-blue-500/30">
                             Simpan Data
                         </button>
@@ -235,6 +231,7 @@
         </div>
     </div>
 
+    <!-- ========== DELETE MODAL ========== -->
     <div id="delete-modal" class="fixed inset-0 z-[99999] hidden flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-bounce-in">
@@ -245,14 +242,14 @@
             <h3 class="text-2xl font-bold text-slate-800 mb-2">Hapus Data?</h3>
             <p class="text-sm text-slate-500 mb-8 font-medium">Data yang dihapus tidak dapat dikembalikan. Yakin ingin melanjutkan?</p>
             <div class="flex flex-col sm:flex-row justify-center gap-3">
-                <button onclick="closeDeleteModal()"
-                    class="w-full px-6 py-3.5 text-slate-600 font-bold bg-slate-50 hover:bg-slate-100 rounded-2xl transition-colors">Batal</button>
-                <button onclick="executeDelete()"
+                <button onclick="closeDeleteModal()" class="w-full px-6 py-3.5 text-slate-600 font-bold bg-slate-50 hover:bg-slate-100 rounded-2xl transition-colors">Batal</button>
+                <button onclick="executeDelete()" id="btn-delete-confirm"
                     class="w-full px-6 py-3.5 bg-gradient-to-r from-red-500 to-red-600 text-white font-bold hover:shadow-lg rounded-2xl transition-all shadow-red-500/30">Ya, Hapus</button>
             </div>
         </div>
     </div>
 
+    <!-- ========== TOAST ========== -->
     <div id="toast" class="bg-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-slate-100 min-w-[300px]">
         <div id="toast-icon-wrapper" class="w-10 h-10 rounded-full flex items-center justify-center bg-emerald-50 flex-shrink-0">
             <i id="toast-icon" class="fa-solid fa-check text-emerald-500 text-xl"></i>
@@ -264,25 +261,44 @@
     </div>
 </div>
 
-<style>
-    .pb-safe { padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 8px); }
-    .slide-up-anim { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    .animate-bounce-in { animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-    @keyframes bounceIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-</style>
-
 <script>
 // ============================================================
-//  KONFIGURASI
+//  ⚙️  KONFIGURASI SUPABASE — ISI DI SINI
+// ============================================================
+const SUPABASE_URL  = 'https://japiseybqzeshcjaswfl.supabase.co';    // contoh: https://xxxx.supabase.co
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphcGlzZXlicXplc2hjamFzd2ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MTk4OTMsImV4cCI6MjA5NDQ5NTg5M30.f1JqxtPtE7Z0ccFdflPGe09FLPSawdFYjcVJydxET-g'; // anon/public key
+
+// ============================================================
+//  KONFIGURASI PENGGUNA (hardcoded, bisa diganti ke tabel users)
 // ============================================================
 const USERS = [
     { username: 'admin',   password: 'soara2024', nama: 'M Mughni Labib', role: 'Admin Pemodal' },
     { username: 'peserta', password: 'soara2024', nama: 'M Nurkholis',     role: 'Peserta'       }
 ];
 
-const STORAGE_KEY = 'soara_data_v2';
 const SESSION_KEY = 'soara_session';
+
+// ============================================================
+//  INIT SUPABASE
+// ============================================================
+let supabase = null;
+let dbConnected = false;
+
+function initSupabase() {
+    if (SUPABASE_URL === 'GANTI_DENGAN_URL_SUPABASE_ANDA') {
+        document.getElementById('config-banner').classList.remove('hidden');
+        console.warn('[SOARA] Supabase belum dikonfigurasi. Jalankan dalam mode offline (localStorage).');
+        return false;
+    }
+    try {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        dbConnected = true;
+        return true;
+    } catch(e) {
+        console.error('[SOARA] Gagal init Supabase:', e);
+        return false;
+    }
+}
 
 // ============================================================
 //  UTILITIES
@@ -290,14 +306,15 @@ const SESSION_KEY = 'soara_session';
 const formatRp = (angka) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0);
 
+function genId(prefix) { return prefix + '-' + Date.now(); }
+function nowTimestamp() { return new Date().toISOString().replace('T', ' ').slice(0, 19); }
+
 function showToast(msg, type = 'success') {
     const toast   = document.getElementById('toast');
     const icon    = document.getElementById('toast-icon');
     const wrapper = document.getElementById('toast-icon-wrapper');
     const title   = document.getElementById('toast-title');
-    
     document.getElementById('toast-msg').textContent = msg;
-    
     if (type === 'success') {
         icon.className = 'fa-solid fa-check text-emerald-500 text-xl';
         wrapper.className = 'w-10 h-10 rounded-full flex items-center justify-center bg-emerald-50 flex-shrink-0';
@@ -309,128 +326,171 @@ function showToast(msg, type = 'success') {
         title.textContent = 'PERHATIAN';
         title.className = 'text-[10px] font-extrabold text-red-500 uppercase tracking-widest mb-0.5';
     }
-    
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function showLoading(msg = 'Memproses...') {
+    document.getElementById('loading-msg').textContent = msg;
+    document.getElementById('global-loading').classList.remove('hidden');
+}
+function hideLoading() {
+    document.getElementById('global-loading').classList.add('hidden');
 }
 
 function togglePasswordVisibility() {
     const input = document.getElementById('login-password');
     const icon  = document.getElementById('eye-icon');
-    if (input.type === 'password') {
-        input.type = 'text';
-        icon.className = 'fa-solid fa-eye-slash text-blue-600';
-    } else {
-        input.type = 'password';
-        icon.className = 'fa-solid fa-eye';
-    }
+    if (input.type === 'password') { input.type = 'text'; icon.className = 'fa-solid fa-eye-slash text-blue-600'; }
+    else { input.type = 'password'; icon.className = 'fa-solid fa-eye'; }
 }
 
-function genId(prefix) { return prefix + '-' + Date.now(); }
-function nowTimestamp() { return new Date().toISOString().replace('T', ' ').slice(0, 19); }
+// ============================================================
+//  DATA LAYER — Supabase + fallback localStorage
+// ============================================================
+const LOCAL_KEY = 'soara_data_v2';
 
-// ============================================================
-//  DATA LAYER
-// ============================================================
 const defaultData = {
-    deposit: [
-        { id: 'DEP-1', timestamp: '2026-05-10 10:00:00', tanggal: '2026-05-10', pemodal: 'M Mughni Labib', nominal: 50000000, keterangan: 'Modal Awal', penginput: 'admin' },
-        { id: 'DEP-2', timestamp: '2026-05-12 11:30:00', tanggal: '2026-05-12', pemodal: 'M Nurkholis', nominal: 50000000, keterangan: 'Modal Awal', penginput: 'admin' }
-    ],
-    pengeluaran: [
-        { id: 'PENG-1', timestamp: '2026-05-14 09:00:00', tanggal: '2026-05-14', kategori: 'Biaya Iklan', nominal: 15000000, keterangan: 'Topup Meta Ads', penginput: 'admin' }
-    ],
-    omset: [
-        { id: 'OMS-1', timestamp: '2026-05-16 08:00:00', bulan: '2026-05', nominal: 45000000, keterangan: 'Omset Minggu 1-2 Mei', penginput: 'admin' }
-    ],
-    withdraw: [ 
-        { id: 'WD-1', timestamp: '2026-05-17 10:00:00', tanggal: '2026-05-17', pemodal: 'M Mughni Labib', nominal: 2000000, keterangan: 'Tarik sebagian dividen Mei', penginput: 'admin' }
-    ],
-    logRevisi: []
+    deposit: [], pengeluaran: [], omset: [], withdraw: [], logRevisi: []
 };
 
-function loadData() {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        let parsed = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(defaultData));
-        if (!parsed.withdraw) parsed.withdraw = [];
-        return parsed;
-    } catch {
-        return JSON.parse(JSON.stringify(defaultData));
-    }
-}
-
-function saveData(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
-// ============================================================
-//  APP STATE
-// ============================================================
 let appState = {
     user: null,
     currentView: 'dashboard',
-    data: loadData(),
+    data: JSON.parse(JSON.stringify(defaultData)),
     deleteTarget: null
 };
 
-const menuItems = [
-    { id: 'dashboard',   icon: 'fa-solid fa-house',                label: 'Dashboard',  mobile: true },
-    { id: 'deposit',     icon: 'fa-solid fa-wallet',               label: 'Deposit',    mobile: false },
-    { id: 'pengeluaran', icon: 'fa-solid fa-money-bill-transfer',  label: 'Biaya',      mobile: true },
-    { id: 'omset',       icon: 'fa-solid fa-arrow-trend-up',       label: 'Omset',      mobile: true },
-    { id: 'withdraw',    icon: 'fa-solid fa-hand-holding-dollar',  label: 'Withdraw',   mobile: false }, // Disembunyikan dr bottom nav agar tidak penuh, diganti Laporan
-    { id: 'laporan',     icon: 'fa-solid fa-file-invoice-dollar',  label: 'Laporan',    mobile: true },
-    { id: 'log',         icon: 'fa-solid fa-clock-rotate-left',    label: 'Log Revisi', mobile: false }
-];
-
-// ============================================================
-//  INIT
-// ============================================================
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('current-date').textContent =
-        new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-    const savedSession = sessionStorage.getItem(SESSION_KEY);
-    if (savedSession) {
-        appState.user = JSON.parse(savedSession);
-        showMainApp();
+// Load semua data dari Supabase
+async function loadAllData() {
+    if (!dbConnected) {
+        try {
+            const raw = localStorage.getItem(LOCAL_KEY);
+            const parsed = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(defaultData));
+            if (!parsed.withdraw)   parsed.withdraw = [];
+            if (!parsed.logRevisi)  parsed.logRevisi = [];
+            appState.data = parsed;
+        } catch { appState.data = JSON.parse(JSON.stringify(defaultData)); }
+        return;
     }
-});
+
+    showLoading('Memuat data dari Supabase...');
+    try {
+        const [dep, peng, oms, wd, log] = await Promise.all([
+            supabase.from('deposit').select('*').order('timestamp', { ascending: true }),
+            supabase.from('pengeluaran').select('*').order('timestamp', { ascending: true }),
+            supabase.from('omset').select('*').order('timestamp', { ascending: true }),
+            supabase.from('withdraw').select('*').order('timestamp', { ascending: true }),
+            supabase.from('log_revisi').select('*').order('timestamp', { ascending: true })
+        ]);
+        appState.data.deposit     = dep.data   || [];
+        appState.data.pengeluaran = peng.data  || [];
+        appState.data.omset       = oms.data   || [];
+        appState.data.withdraw    = wd.data    || [];
+        appState.data.logRevisi   = log.data   || [];
+        updateDbStatus(true);
+    } catch(e) {
+        console.error('[SOARA] Gagal memuat data:', e);
+        showToast('Gagal memuat data dari Supabase!', 'error');
+        updateDbStatus(false);
+    } finally {
+        hideLoading();
+    }
+}
+
+function updateDbStatus(ok) {
+    const dot   = document.getElementById('db-dot');
+    const label = document.getElementById('db-label');
+    const wrap  = document.getElementById('db-status');
+    wrap.classList.remove('hidden');
+    if (ok) {
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        label.textContent = 'Terhubung';
+    } else {
+        dot.className = 'w-2 h-2 rounded-full bg-red-400';
+        label.textContent = 'Offline';
+    }
+}
+
+// Simpan/update satu record ke Supabase
+async function upsertRecord(table, record) {
+    if (!dbConnected) {
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(appState.data));
+        return;
+    }
+    const { error } = await supabase.from(table).upsert(record, { onConflict: 'id' });
+    if (error) throw error;
+}
+
+// Hapus satu record dari Supabase
+async function deleteRecord(table, id) {
+    if (!dbConnected) {
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(appState.data));
+        return;
+    }
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) throw error;
+}
+
+// Simpan log revisi
+async function insertLog(logObj) {
+    if (!dbConnected) { appState.data.logRevisi.push(logObj); localStorage.setItem(LOCAL_KEY, JSON.stringify(appState.data)); return; }
+    const { error } = await supabase.from('log_revisi').insert(logObj);
+    if (error) console.error('[SOARA] Gagal simpan log:', error);
+    else appState.data.logRevisi.push(logObj);
+}
+
+// Peta nama tabel
+const TABLE_MAP = {
+    deposit: 'deposit', pengeluaran: 'pengeluaran', omset: 'omset', withdraw: 'withdraw'
+};
+
+// ============================================================
+//  MENU
+// ============================================================
+const menuItems = [
+    { id: 'dashboard',   icon: 'fa-solid fa-house',               label: 'Dashboard',  mobile: true  },
+    { id: 'deposit',     icon: 'fa-solid fa-wallet',              label: 'Deposit',    mobile: false },
+    { id: 'pengeluaran', icon: 'fa-solid fa-money-bill-transfer', label: 'Biaya',      mobile: true  },
+    { id: 'omset',       icon: 'fa-solid fa-arrow-trend-up',      label: 'Omset',      mobile: true  },
+    { id: 'withdraw',    icon: 'fa-solid fa-hand-holding-dollar', label: 'Withdraw',   mobile: false },
+    { id: 'laporan',     icon: 'fa-solid fa-file-invoice-dollar', label: 'Laporan',    mobile: true  },
+    { id: 'log',         icon: 'fa-solid fa-clock-rotate-left',   label: 'Log Revisi', mobile: false }
+];
 
 // ============================================================
 //  AUTH
 // ============================================================
-function handleLogin(e) {
+async function handleLogin(e) {
     e.preventDefault();
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
     const btn      = document.getElementById('btn-login');
     const alertBox = document.getElementById('login-alert');
 
-    btn.innerHTML  = '<i class="fa-solid fa-circle-notch fa-spin"></i> Memproses...';
-    btn.disabled   = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Memproses...';
+    btn.disabled  = true;
     alertBox.classList.add('hidden');
 
-    setTimeout(() => {
-        const user = USERS.find(u => u.username === username && u.password === password);
-        if (user) {
-            const userData = { username: user.username, nama: user.nama, role: user.role };
-            appState.user  = userData;
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify(userData));
-            showMainApp();
-        } else {
-            document.getElementById('login-alert-msg').textContent = 'Username atau password salah!';
-            alertBox.classList.remove('hidden');
-            btn.innerHTML = '<span>Masuk Sistem</span><i class="fa-solid fa-arrow-right-to-bracket"></i>';
-            btn.disabled  = false;
-        }
-    }, 500);
+    const user = USERS.find(u => u.username === username && u.password === password);
+    if (user) {
+        const userData = { username: user.username, nama: user.nama, role: user.role };
+        appState.user  = userData;
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(userData));
+        await loadAllData();
+        showMainApp();
+    } else {
+        document.getElementById('login-alert-msg').textContent = 'Username atau password salah!';
+        alertBox.classList.remove('hidden');
+        btn.innerHTML = '<span>Masuk Sistem</span><i class="fa-solid fa-arrow-right-to-bracket"></i>';
+        btn.disabled  = false;
+    }
 }
 
 function handleLogout() {
     sessionStorage.removeItem(SESSION_KEY);
     appState.user = null;
+    appState.data = JSON.parse(JSON.stringify(defaultData));
     document.getElementById('main-app').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
     const btn = document.getElementById('btn-login');
@@ -445,9 +505,9 @@ function handleLogout() {
 function showMainApp() {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('main-app').classList.remove('hidden');
-    document.getElementById('user-name-display').textContent  = appState.user.nama;
-    document.getElementById('user-role-display').textContent  = appState.user.role;
-    document.getElementById('user-avatar').textContent        = appState.user.nama.charAt(0).toUpperCase();
+    document.getElementById('user-name-display').textContent = appState.user.nama;
+    document.getElementById('user-role-display').textContent = appState.user.role;
+    document.getElementById('user-avatar').textContent       = appState.user.nama.charAt(0).toUpperCase();
     renderMenu();
     loadView('dashboard');
 }
@@ -461,7 +521,6 @@ function toggleSidebar() {
 }
 
 function renderMenu() {
-    // Sidebar
     const nav = document.getElementById('nav-menu');
     nav.innerHTML = '';
     menuItems.forEach(item => {
@@ -470,32 +529,22 @@ function renderMenu() {
         btn.className = `w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold text-sm text-left mb-1
             ${isActive ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`;
         btn.innerHTML = `
-            <div class="${isActive ? 'text-white' : 'text-slate-400'} w-6 text-center text-lg">
-                <i class="${item.icon}"></i>
-            </div>
+            <div class="${isActive ? 'text-white' : 'text-slate-400'} w-6 text-center text-lg"><i class="${item.icon}"></i></div>
             <span>${item.label}</span>`;
-        btn.onclick = () => {
-            loadView(item.id);
-            if (window.innerWidth < 768) toggleSidebar();
-        };
+        btn.onclick = () => { loadView(item.id); if (window.innerWidth < 768) toggleSidebar(); };
         nav.appendChild(btn);
     });
 
-    // Bottom Nav
     const bottomNav = document.getElementById('bottom-nav');
     bottomNav.innerHTML = '';
-    const mobileItems = menuItems.filter(m => m.mobile);
-    mobileItems.forEach(item => {
+    menuItems.filter(m => m.mobile).forEach(item => {
         const isActive = appState.currentView === item.id;
         const btn = document.createElement('button');
         btn.className = `nav-item flex flex-col items-center justify-center flex-1 transition-all ${isActive ? 'active' : 'text-slate-400 hover:text-slate-600'}`;
         btn.onclick = () => loadView(item.id);
         btn.innerHTML = `
-            <div class="icon-container w-12 h-12 flex items-center justify-center rounded-2xl text-xl mb-1.5 transition-all duration-300">
-                <i class="${item.icon}"></i>
-            </div>
-            <span class="text-[10px] font-bold ${isActive ? 'text-blue-700' : 'text-slate-500'} tracking-wide">${item.label}</span>
-        `;
+            <div class="icon-container w-12 h-12 flex items-center justify-center rounded-2xl text-xl mb-1.5 transition-all duration-300"><i class="${item.icon}"></i></div>
+            <span class="text-[10px] font-bold ${isActive ? 'text-blue-700' : 'text-slate-500'} tracking-wide">${item.label}</span>`;
         bottomNav.appendChild(btn);
     });
 }
@@ -503,37 +552,27 @@ function renderMenu() {
 function loadView(viewId) {
     appState.currentView = viewId;
     renderMenu();
-    
-    const titleObj = menuItems.find(m => m.id === viewId);
-    let fullTitle = titleObj ? titleObj.label : 'Dashboard';
-    if(viewId === 'deposit') fullTitle = 'Deposit Modal';
-    if(viewId === 'pengeluaran') fullTitle = 'Biaya Operasional';
-    if(viewId === 'omset') fullTitle = 'Omset Ads';
-    if(viewId === 'withdraw') fullTitle = 'Riwayat Withdraw';
-    document.getElementById('page-title').textContent = fullTitle;
-    
+    const titleMap = { dashboard:'Dashboard', deposit:'Deposit Modal', pengeluaran:'Biaya Operasional', omset:'Omset Ads', withdraw:'Riwayat Withdraw', laporan:'Laporan Keuangan', log:'Log Revisi' };
+    document.getElementById('page-title').textContent = titleMap[viewId] || viewId;
     const area = document.getElementById('content-area');
-    area.innerHTML = `
-        <div class="flex flex-col justify-center items-center h-64 gap-4">
-            <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            <p class="text-sm font-bold text-slate-400 animate-pulse">Memuat data...</p>
-        </div>`;
-        
+    area.innerHTML = `<div class="flex flex-col justify-center items-center h-64 gap-4">
+        <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+        <p class="text-sm font-bold text-slate-400 animate-pulse">Memuat data...</p></div>`;
     setTimeout(() => {
         switch (viewId) {
-            case 'dashboard':   renderDashboard(area);   break;
-            case 'deposit':     renderTableCRUD(area, 'deposit',     'Deposit Modal',       ['Tanggal', 'Pemodal',   'Keterangan', 'Nominal']); break;
-            case 'pengeluaran': renderTableCRUD(area, 'pengeluaran', 'Biaya Operasional',   ['Tanggal', 'Kategori',  'Keterangan', 'Nominal']); break;
-            case 'omset':       renderTableCRUD(area, 'omset',       'Omset Ads',           ['Bulan',   'Keterangan','Nominal']);                break;
-            case 'withdraw':    renderTableCRUD(area, 'withdraw',    'Penarikan Dividen',   ['Tanggal', 'Pemodal',   'Keterangan', 'Nominal']); break;
-            case 'laporan':     renderLaporan(area);     break;
-            case 'log':         renderLogRevisi(area);   break;
+            case 'dashboard':   renderDashboard(area); break;
+            case 'deposit':     renderTableCRUD(area, 'deposit',     'Deposit Modal',     ['Tanggal', 'Pemodal',   'Keterangan', 'Nominal']); break;
+            case 'pengeluaran': renderTableCRUD(area, 'pengeluaran', 'Biaya Operasional', ['Tanggal', 'Kategori',  'Keterangan', 'Nominal']); break;
+            case 'omset':       renderTableCRUD(area, 'omset',       'Omset Ads',         ['Bulan',   'Keterangan','Nominal']);                break;
+            case 'withdraw':    renderTableCRUD(area, 'withdraw',    'Penarikan Dividen', ['Tanggal', 'Pemodal',   'Keterangan', 'Nominal']); break;
+            case 'laporan':     renderLaporan(area); break;
+            case 'log':         renderLogRevisi(area); break;
         }
-    }, 150);
+    }, 100);
 }
 
 // ============================================================
-//  SUMMARY HELPER
+//  SUMMARY
 // ============================================================
 function getSummaryData() {
     const { deposit, pengeluaran, omset, withdraw } = appState.data;
@@ -551,22 +590,14 @@ function getSummaryData() {
 // ============================================================
 function renderDashboard(container) {
     const s = getSummaryData();
-
     container.innerHTML = `
         <div class="bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-800 rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-blue-500/30 text-white relative overflow-hidden mb-6 sm:mb-8 border border-white/10">
-            <div class="absolute -right-10 -bottom-10 opacity-10">
-                <i class="fa-solid fa-sack-dollar text-[12rem]"></i>
-            </div>
-            
+            <div class="absolute -right-10 -bottom-10 opacity-10"><i class="fa-solid fa-sack-dollar text-[12rem]"></i></div>
             <div class="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6">
                 <div>
-                    <p class="text-blue-100 font-bold mb-1 flex items-center gap-2">
-                        <i class="fa-solid fa-wallet"></i> Net Margin (Keuntungan)
-                    </p>
+                    <p class="text-blue-100 font-bold mb-1 flex items-center gap-2"><i class="fa-solid fa-wallet"></i> Net Margin (Keuntungan)</p>
                     <h4 class="text-4xl sm:text-5xl font-extrabold mb-2 tracking-tight ${s.netMargin < 0 ? 'text-red-300' : 'text-white'} break-all">${formatRp(s.netMargin)}</h4>
-                    <p class="text-xs font-medium text-blue-200 bg-black/10 inline-block px-3 py-1.5 rounded-lg backdrop-blur-sm">
-                        Total Omset dikurangi Biaya Operasional
-                    </p>
+                    <p class="text-xs font-medium text-blue-200 bg-black/10 inline-block px-3 py-1.5 rounded-lg backdrop-blur-sm">Total Omset dikurangi Biaya Operasional</p>
                 </div>
                 <div class="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 min-w-[200px] shadow-inner">
                     <p class="text-[10px] text-blue-200 font-extrabold uppercase tracking-widest mb-1">Total Penarikan (WD)</p>
@@ -574,42 +605,32 @@ function renderDashboard(container) {
                 </div>
             </div>
         </div>
-
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
             <div class="bg-white rounded-[1.5rem] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 flex items-center gap-5 relative overflow-hidden group">
                 <div class="absolute -right-4 -top-4 w-16 h-16 bg-blue-50 rounded-full group-hover:scale-[2] transition-transform duration-500"></div>
-                <div class="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 relative z-10 shadow-sm">
-                    <i class="fa-solid fa-vault"></i>
-                </div>
+                <div class="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 relative z-10 shadow-sm"><i class="fa-solid fa-vault"></i></div>
                 <div class="relative z-10">
                     <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Total Modal</p>
                     <h4 class="text-xl font-bold text-slate-800 break-all">${formatRp(s.totalDeposit)}</h4>
                 </div>
             </div>
-
             <div class="bg-red-50/50 rounded-[1.5rem] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-red-100 flex items-center gap-5 relative overflow-hidden group">
-                 <div class="absolute -right-4 -top-4 w-16 h-16 bg-red-100/50 rounded-full group-hover:scale-[2] transition-transform duration-500"></div>
-                <div class="w-14 h-14 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 relative z-10 shadow-sm">
-                    <i class="fa-solid fa-chart-line fa-flip-vertical"></i>
-                </div>
+                <div class="absolute -right-4 -top-4 w-16 h-16 bg-red-100/50 rounded-full group-hover:scale-[2] transition-transform duration-500"></div>
+                <div class="w-14 h-14 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 relative z-10 shadow-sm"><i class="fa-solid fa-chart-line fa-flip-vertical"></i></div>
                 <div class="relative z-10">
                     <p class="text-[10px] font-extrabold text-red-400 uppercase tracking-widest mb-1">Total Biaya</p>
                     <h4 class="text-xl font-bold text-red-600 break-all">${formatRp(s.totalBiaya)}</h4>
                 </div>
             </div>
-
             <div class="bg-emerald-50/50 rounded-[1.5rem] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-emerald-100 flex items-center gap-5 relative overflow-hidden group">
-                 <div class="absolute -right-4 -top-4 w-16 h-16 bg-emerald-100/50 rounded-full group-hover:scale-[2] transition-transform duration-500"></div>
-                <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 relative z-10 shadow-sm">
-                    <i class="fa-solid fa-arrow-trend-up"></i>
-                </div>
+                <div class="absolute -right-4 -top-4 w-16 h-16 bg-emerald-100/50 rounded-full group-hover:scale-[2] transition-transform duration-500"></div>
+                <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 relative z-10 shadow-sm"><i class="fa-solid fa-arrow-trend-up"></i></div>
                 <div class="relative z-10">
                     <p class="text-[10px] font-extrabold text-emerald-500 uppercase tracking-widest mb-1">Total Omset</p>
                     <h4 class="text-xl font-bold text-emerald-600 break-all">${formatRp(s.totalOmset)}</h4>
                 </div>
             </div>
         </div>
-
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white rounded-[1.5rem] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100">
                 <div class="flex justify-between items-center mb-5">
@@ -620,20 +641,16 @@ function renderDashboard(container) {
                     ${appState.data.withdraw.slice(-3).reverse().map(w => `
                         <div class="flex items-center justify-between group">
                             <div class="flex items-center gap-4">
-                                <div class="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 flex-shrink-0 group-hover:scale-110 transition-transform">
-                                    <i class="fa-solid fa-hand-holding-dollar text-lg"></i>
-                                </div>
+                                <div class="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 flex-shrink-0 group-hover:scale-110 transition-transform"><i class="fa-solid fa-hand-holding-dollar text-lg"></i></div>
                                 <div>
                                     <p class="font-bold text-sm text-slate-800">${w.pemodal}</p>
                                     <p class="text-xs text-slate-500 font-medium">${w.tanggal} · ${w.keterangan}</p>
                                 </div>
                             </div>
                             <span class="font-bold text-amber-600 text-sm">-${formatRp(w.nominal)}</span>
-                        </div>
-                    `).join('') || `<div class="text-center py-6 text-slate-400 font-medium text-sm">Belum ada penarikan.</div>`}
+                        </div>`).join('') || `<div class="text-center py-6 text-slate-400 font-medium text-sm">Belum ada penarikan.</div>`}
                 </div>
             </div>
-
             <div class="bg-white rounded-[1.5rem] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100">
                 <div class="flex justify-between items-center mb-5">
                     <h3 class="font-bold text-slate-800 text-lg">Omset Terakhir</h3>
@@ -643,21 +660,17 @@ function renderDashboard(container) {
                     ${appState.data.omset.slice(-3).reverse().map(o => `
                         <div class="flex items-center justify-between group">
                             <div class="flex items-center gap-4">
-                                <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 flex-shrink-0 group-hover:scale-110 transition-transform">
-                                    <i class="fa-solid fa-money-bill-wave text-lg"></i>
-                                </div>
+                                <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 flex-shrink-0 group-hover:scale-110 transition-transform"><i class="fa-solid fa-money-bill-wave text-lg"></i></div>
                                 <div>
                                     <p class="font-bold text-sm text-slate-800">${o.bulan}</p>
                                     <p class="text-xs text-slate-500 font-medium">${o.keterangan}</p>
                                 </div>
                             </div>
                             <span class="font-bold text-emerald-600 text-sm">+${formatRp(o.nominal)}</span>
-                        </div>
-                    `).join('') || `<div class="text-center py-6 text-slate-400 font-medium text-sm">Belum ada data omset.</div>`}
+                        </div>`).join('') || `<div class="text-center py-6 text-slate-400 font-medium text-sm">Belum ada data omset.</div>`}
                 </div>
             </div>
-        </div>
-    `;
+        </div>`;
 }
 
 // ============================================================
@@ -666,14 +679,10 @@ function renderDashboard(container) {
 function renderTableCRUD(container, type, title, headers) {
     const data = appState.data[type] || [];
     let rowsHtml = '';
-
     if (data.length === 0) {
         rowsHtml = `<tr><td colspan="${headers.length + 1}" class="px-6 py-16 text-center text-slate-400">
-            <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <i class="fa-solid fa-folder-open text-3xl"></i>
-            </div>
-            <p class="font-medium text-slate-500">Belum ada data ${title.toLowerCase()}</p>
-        </td></tr>`;
+            <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3"><i class="fa-solid fa-folder-open text-3xl"></i></div>
+            <p class="font-medium text-slate-500">Belum ada data ${title.toLowerCase()}</p></td></tr>`;
     } else {
         [...data].reverse().forEach(item => {
             let colHtml = '';
@@ -704,24 +713,16 @@ function renderTableCRUD(container, type, title, headers) {
                     <td class="px-6 py-5 text-sm text-slate-500 max-w-[300px] truncate">${item.keterangan}</td>
                     <td class="px-6 py-5 whitespace-nowrap text-sm font-bold text-emerald-500 text-right">+${formatRp(item.nominal)}</td>`;
             }
-
-            rowsHtml += `
-                <tr class="hover:bg-slate-50/80 transition-colors border-b border-slate-100 last:border-0">
-                    ${colHtml}
-                    <td class="px-6 py-5 whitespace-nowrap text-right">
-                        <div class="flex justify-end gap-2">
-                            <button onclick="openForm('${type}','${item.id}')" class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-sm">
-                                <i class="fa-solid fa-pen text-sm"></i>
-                            </button>
-                            <button onclick="confirmDelete('${type}','${item.id}')" class="w-9 h-9 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center shadow-sm">
-                                <i class="fa-solid fa-trash-can text-sm"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>`;
+            rowsHtml += `<tr class="hover:bg-slate-50/80 transition-colors border-b border-slate-100 last:border-0">
+                ${colHtml}
+                <td class="px-6 py-5 whitespace-nowrap text-right">
+                    <div class="flex justify-end gap-2">
+                        <button onclick="openForm('${type}','${item.id}')" class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-sm"><i class="fa-solid fa-pen text-sm"></i></button>
+                        <button onclick="confirmDelete('${type}','${item.id}')" class="w-9 h-9 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center shadow-sm"><i class="fa-solid fa-trash-can text-sm"></i></button>
+                    </div>
+                </td></tr>`;
         });
     }
-
     container.innerHTML = `
         <div class="bg-white rounded-[1.5rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-200 overflow-hidden mb-4">
             <div class="px-6 py-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -749,29 +750,23 @@ function renderTableCRUD(container, type, title, headers) {
 }
 
 // ============================================================
-//  RENDER: LAPORAN (Menyelesaikan bug teks bertabrakan & card polos)
+//  RENDER: LAPORAN
 // ============================================================
 function renderLaporan(container) {
     const s = getSummaryData();
-    const dividen = s.netMargin > 0 ? s.netMargin / 2 : 0;
-    
-    const wdLabib = appState.data.withdraw.filter(w => w.pemodal === 'M Mughni Labib').reduce((sum, w) => sum + Number(w.nominal), 0);
+    const dividen  = s.netMargin > 0 ? s.netMargin / 2 : 0;
+    const wdLabib  = appState.data.withdraw.filter(w => w.pemodal === 'M Mughni Labib').reduce((sum, w) => sum + Number(w.nominal), 0);
     const wdKholis = appState.data.withdraw.filter(w => w.pemodal === 'M Nurkholis').reduce((sum, w) => sum + Number(w.nominal), 0);
-    
     container.innerHTML = `
         <div class="max-w-4xl mx-auto space-y-6 pb-6">
             <div class="bg-white rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-200 overflow-hidden text-center p-8 relative">
                 <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-blue-400"></div>
-                <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-600 text-2xl shadow-sm">
-                    <i class="fa-solid fa-file-invoice-dollar"></i>
-                </div>
+                <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-600 text-2xl shadow-sm"><i class="fa-solid fa-file-invoice-dollar"></i></div>
                 <h2 class="text-3xl font-extrabold text-slate-800 mb-2">Laporan Keuangan</h2>
                 <p class="text-slate-500 font-semibold">Ringkasan Total Seluruh Transaksi & Pembagian Dividen</p>
             </div>
-            
             <div class="bg-white rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-200 p-6 sm:p-8">
                 <div class="space-y-4 mb-8">
-                    
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 p-5 bg-emerald-50/50 border border-emerald-100 rounded-2xl">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shadow-sm"><i class="fa-solid fa-arrow-trend-up"></i></div>
@@ -779,7 +774,6 @@ function renderLaporan(container) {
                         </div>
                         <span class="font-bold text-2xl text-emerald-600 self-end sm:self-auto break-all">${formatRp(s.totalOmset)}</span>
                     </div>
-                    
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 p-5 bg-red-50/50 border border-red-100 rounded-2xl">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center shadow-sm"><i class="fa-solid fa-arrow-trend-down"></i></div>
@@ -787,7 +781,6 @@ function renderLaporan(container) {
                         </div>
                         <span class="font-bold text-2xl text-red-600 self-end sm:self-auto break-all">- ${formatRp(s.totalBiaya)}</span>
                     </div>
-                    
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-6 bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-2xl shadow-lg shadow-blue-500/20">
                         <div>
                             <span class="font-bold text-lg block">Net Margin</span>
@@ -796,16 +789,13 @@ function renderLaporan(container) {
                         <span class="font-extrabold text-4xl sm:text-3xl self-end sm:self-auto ${s.netMargin < 0 ? 'text-red-300' : 'text-white'} break-all">${formatRp(s.netMargin)}</span>
                     </div>
                 </div>
-                
                 <div class="border-t border-dashed border-slate-200 pt-8">
                     <div class="text-center mb-6">
                         <span class="px-4 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-extrabold uppercase tracking-widest rounded-full">Alokasi Profit</span>
                         <h3 class="text-xl font-bold text-slate-800 mt-4">Pembagian Dividen (50:50)</h3>
                     </div>
-                    
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div class="border border-slate-100 bg-slate-50/50 rounded-[1.5rem] p-6 relative overflow-hidden shadow-sm">
-                            <div class="absolute top-0 right-0 w-24 h-24 bg-blue-100/50 rounded-full -mr-10 -mt-10 z-0"></div>
                             <div class="relative z-10">
                                 <div class="flex items-center gap-3 mb-4">
                                     <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">L</div>
@@ -819,9 +809,7 @@ function renderLaporan(container) {
                                 </div>
                             </div>
                         </div>
-                        
                         <div class="border border-slate-100 bg-slate-50/50 rounded-[1.5rem] p-6 relative overflow-hidden shadow-sm">
-                            <div class="absolute top-0 right-0 w-24 h-24 bg-blue-100/50 rounded-full -mr-10 -mt-10 z-0"></div>
                             <div class="relative z-10">
                                 <div class="flex items-center gap-3 mb-4">
                                     <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">N</div>
@@ -848,11 +836,8 @@ function renderLogRevisi(container) {
     const logs = [...appState.data.logRevisi].reverse();
     const rowsHtml = logs.length === 0
         ? `<tr><td colspan="4" class="px-6 py-16 text-center text-slate-400">
-            <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <i class="fa-solid fa-clock text-2xl"></i>
-            </div>
-            <p class="font-medium">Belum ada riwayat revisi.</p>
-           </td></tr>`
+            <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3"><i class="fa-solid fa-clock text-2xl"></i></div>
+            <p class="font-medium">Belum ada riwayat revisi.</p></td></tr>`
         : logs.map(log => `
             <tr class="hover:bg-slate-50/80 transition-colors border-b border-slate-100">
                 <td class="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-mono font-medium">${log.timestamp}</td>
@@ -868,7 +853,6 @@ function renderLogRevisi(container) {
                     </div>
                 </td>
             </tr>`).join('');
-
     container.innerHTML = `
         <div class="bg-white rounded-[1.5rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-200 overflow-hidden">
             <div class="px-6 py-6 border-b border-slate-100 flex items-center gap-3">
@@ -900,22 +884,19 @@ function renderLogRevisi(container) {
 function openForm(type, id = null) {
     document.getElementById('form-type').value = type;
     document.getElementById('form-id').value   = id || '';
-    
     let titleStr = type.charAt(0).toUpperCase() + type.slice(1);
-    if(type === 'withdraw') titleStr = 'Penarikan Dividen';
-    
+    if (type === 'withdraw') titleStr = 'Penarikan Dividen';
     document.getElementById('modal-title').textContent = id ? `Revisi ${titleStr}` : `Input ${titleStr}`;
 
-    const isEdit   = !!id;
-    const item     = isEdit ? appState.data[type].find(d => d.id === id) : null;
-    const today    = new Date().toISOString().split('T')[0];
+    const isEdit  = !!id;
+    const item    = isEdit ? appState.data[type].find(d => d.id === id) : null;
+    const today   = new Date().toISOString().split('T')[0];
     const monthNow = new Date().toISOString().slice(0, 7);
 
     document.getElementById('reason-field').classList.toggle('hidden', !isEdit);
     document.getElementById('edit-reason').required = isEdit;
 
     let fieldsHtml = '';
-
     if (type === 'deposit' || type === 'withdraw') {
         fieldsHtml = `
             <div>
@@ -927,8 +908,8 @@ function openForm(type, id = null) {
                 <label class="block text-sm font-bold text-slate-700 mb-2">Nama Pemodal</label>
                 <div class="relative">
                     <select id="input-pemodal" required class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-semibold text-slate-700 appearance-none transition-all">
-                        <option value="M Mughni Labib"  ${isEdit && item.pemodal === 'M Mughni Labib'  ? 'selected' : ''}>M Mughni Labib</option>
-                        <option value="M Nurkholis"     ${isEdit && item.pemodal === 'M Nurkholis'     ? 'selected' : ''}>M Nurkholis</option>
+                        <option value="M Mughni Labib" ${isEdit && item.pemodal === 'M Mughni Labib' ? 'selected' : ''}>M Mughni Labib</option>
+                        <option value="M Nurkholis"    ${isEdit && item.pemodal === 'M Nurkholis'    ? 'selected' : ''}>M Nurkholis</option>
                     </select>
                     <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500"><i class="fa-solid fa-chevron-down"></i></div>
                 </div>
@@ -958,7 +939,6 @@ function openForm(type, id = null) {
                     class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-semibold text-slate-700 transition-all">
             </div>`;
     }
-
     fieldsHtml += `
         <div>
             <label class="block text-sm font-bold text-slate-700 mb-2">Nominal (Rp)</label>
@@ -983,46 +963,66 @@ function closeModal() {
     document.getElementById('data-form').reset();
 }
 
-function handleFormSubmit(e) {
+async function handleFormSubmit(e) {
     e.preventDefault();
     const type   = document.getElementById('form-type').value;
     const id     = document.getElementById('form-id').value;
     const isEdit = !!id;
+
+    const btn = document.getElementById('btn-submit');
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Menyimpan...';
+    btn.disabled  = true;
 
     const formData = {
         nominal:    parseFloat(document.getElementById('input-nominal').value),
         keterangan: document.getElementById('input-keterangan').value,
         penginput:  appState.user.username
     };
-
-    if (type === 'deposit')     { formData.tanggal = document.getElementById('input-tanggal').value; formData.pemodal   = document.getElementById('input-pemodal').value; }
-    if (type === 'withdraw')    { formData.tanggal = document.getElementById('input-tanggal').value; formData.pemodal   = document.getElementById('input-pemodal').value; }
-    if (type === 'pengeluaran') { formData.tanggal = document.getElementById('input-tanggal').value; formData.kategori  = document.getElementById('input-kategori').value; }
-    if (type === 'omset')       { formData.bulan   = document.getElementById('input-bulan').value; }
-
-    const ts = nowTimestamp();
-
-    if (isEdit) {
-        const idx     = appState.data[type].findIndex(d => d.id === id);
-        const oldData = appState.data[type][idx];
-        const alasan  = document.getElementById('edit-reason').value;
-        appState.data.logRevisi.push({
-            id: genId('LOG'), timestamp: ts, jenis: type.toUpperCase(),
-            id_transaksi: id,
-            perubahan: `Update | Alasan: ${alasan} | Nominal: ${formatRp(oldData.nominal)} → ${formatRp(formData.nominal)}`,
-            pengubah: appState.user.username
-        });
-        appState.data[type][idx] = { ...oldData, ...formData };
-    } else {
-        const prefix = type === 'deposit' ? 'DEP' : type === 'pengeluaran' ? 'PENG' : type === 'withdraw' ? 'WD' : 'OMS';
-        if(!appState.data[type]) appState.data[type] = []; 
-        appState.data[type].push({ id: genId(prefix), timestamp: ts, ...formData });
+    if (type === 'deposit' || type === 'withdraw') {
+        formData.tanggal = document.getElementById('input-tanggal').value;
+        formData.pemodal = document.getElementById('input-pemodal').value;
+    }
+    if (type === 'pengeluaran') {
+        formData.tanggal  = document.getElementById('input-tanggal').value;
+        formData.kategori = document.getElementById('input-kategori').value;
+    }
+    if (type === 'omset') {
+        formData.bulan = document.getElementById('input-bulan').value;
     }
 
-    saveData(appState.data);
-    closeModal();
-    loadView(type);
-    showToast(isEdit ? 'Data berhasil diperbarui!' : 'Data berhasil ditambahkan!');
+    const ts = nowTimestamp();
+    try {
+        if (isEdit) {
+            const idx     = appState.data[type].findIndex(d => d.id === id);
+            const oldData = appState.data[type][idx];
+            const alasan  = document.getElementById('edit-reason').value;
+            const updated = { ...oldData, ...formData };
+            await upsertRecord(TABLE_MAP[type], updated);
+            appState.data[type][idx] = updated;
+            const logObj = {
+                id: genId('LOG'), timestamp: ts, jenis: type.toUpperCase(),
+                id_transaksi: id,
+                perubahan: `Update | Alasan: ${alasan} | Nominal: ${formatRp(oldData.nominal)} → ${formatRp(formData.nominal)}`,
+                pengubah: appState.user.username
+            };
+            await insertLog(logObj);
+        } else {
+            const prefix = type === 'deposit' ? 'DEP' : type === 'pengeluaran' ? 'PENG' : type === 'withdraw' ? 'WD' : 'OMS';
+            const newRecord = { id: genId(prefix), timestamp: ts, ...formData };
+            await upsertRecord(TABLE_MAP[type], newRecord);
+            if (!appState.data[type]) appState.data[type] = [];
+            appState.data[type].push(newRecord);
+        }
+        closeModal();
+        loadView(type);
+        showToast(isEdit ? 'Data berhasil diperbarui!' : 'Data berhasil ditambahkan!');
+    } catch(err) {
+        console.error('[SOARA] Gagal simpan:', err);
+        showToast('Gagal menyimpan data! Cek koneksi.', 'error');
+    } finally {
+        btn.innerHTML = 'Simpan Data';
+        btn.disabled  = false;
+    }
 }
 
 // ============================================================
@@ -1032,25 +1032,53 @@ function confirmDelete(type, id) {
     appState.deleteTarget = { type, id };
     document.getElementById('delete-modal').classList.remove('hidden');
 }
-
 function closeDeleteModal() {
     document.getElementById('delete-modal').classList.add('hidden');
     appState.deleteTarget = null;
 }
 
-function executeDelete() {
+async function executeDelete() {
     const { type, id } = appState.deleteTarget;
-    appState.data[type] = appState.data[type].filter(d => d.id !== id);
-    appState.data.logRevisi.push({
-        id: genId('LOG'), timestamp: nowTimestamp(),
-        jenis: type.toUpperCase(),
-        id_transaksi: id, perubahan: 'DATA DIHAPUS', pengubah: appState.user.username
-    });
-    saveData(appState.data);
-    closeDeleteModal();
-    loadView(type);
-    showToast('Data berhasil dihapus.', 'error');
+    const btn = document.getElementById('btn-delete-confirm');
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Menghapus...';
+    btn.disabled  = true;
+    try {
+        await deleteRecord(TABLE_MAP[type], id);
+        appState.data[type] = appState.data[type].filter(d => d.id !== id);
+        const logObj = {
+            id: genId('LOG'), timestamp: nowTimestamp(),
+            jenis: type.toUpperCase(), id_transaksi: id,
+            perubahan: 'DATA DIHAPUS', pengubah: appState.user.username
+        };
+        await insertLog(logObj);
+        closeDeleteModal();
+        loadView(type);
+        showToast('Data berhasil dihapus.', 'error');
+    } catch(err) {
+        console.error('[SOARA] Gagal hapus:', err);
+        showToast('Gagal menghapus data!', 'error');
+    } finally {
+        btn.innerHTML = 'Ya, Hapus';
+        btn.disabled  = false;
+    }
 }
+
+// ============================================================
+//  INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', async () => {
+    document.getElementById('current-date').textContent =
+        new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    initSupabase();
+
+    const savedSession = sessionStorage.getItem(SESSION_KEY);
+    if (savedSession) {
+        appState.user = JSON.parse(savedSession);
+        await loadAllData();
+        showMainApp();
+    }
+});
 </script>
 </body>
 </html>
