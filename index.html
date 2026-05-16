@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <!-- CSP sudah ditambahkan cdn.jsdelivr.net untuk memuat Supabase SDK -->
+    <!-- CSP sudah ditambahkan cdn.jsdelivr.net untuk memuat Supabase SDK dan html2pdf -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://*.supabase.co wss://*.supabase.co data: blob:;">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -13,8 +13,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Supabase JS SDK via CDN Resmi (LEBIH AMAN & RINGAN) -->
+    <!-- Supabase JS SDK via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- html2pdf JS untuk export PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
         body, html {
@@ -64,6 +67,12 @@
             backdrop-filter: blur(4px);
         }
         .loading-overlay.hidden { display: none; }
+        
+        /* Spesifik untuk hasil PDF agar rapi */
+        .pdf-export-area { background: white; color: black; }
+        .pdf-export-area table { border-collapse: collapse; width: 100%; }
+        .pdf-export-area th, .pdf-export-area td { padding: 8px 12px; border: 1px solid #e2e8f0; text-align: left; }
+        .pdf-export-area th { background-color: #f8fafc; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -311,6 +320,13 @@ const formatRp = (angka) =>
 function genId(prefix) { return prefix + '-' + Date.now(); }
 function nowTimestamp() { return new Date().toISOString().replace('T', ' ').slice(0, 19); }
 
+// Format bulan "YYYY-MM" ke string yang ramah dibaca
+const formatBulan = (yyyymm) => {
+    if(!yyyymm) return '-';
+    const date = new Date(yyyymm + '-01');
+    return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+};
+
 function showToast(msg, type = 'success') {
     const toast   = document.getElementById('toast');
     const icon    = document.getElementById('toast-icon');
@@ -358,7 +374,8 @@ let appState = {
     user: null,
     currentView: 'dashboard',
     data: JSON.parse(JSON.stringify(defaultData)),
-    deleteTarget: null
+    deleteTarget: null,
+    selectedRekapBulan: null // Menyimpan bulan yang sedang dipilih untuk direkap
 };
 
 // Load semua data dari Supabase
@@ -379,7 +396,6 @@ async function loadAllData() {
             supabaseClient.from('log_revisi').select('*').order('timestamp', { ascending: true })
         ]);
         
-        // Pengecekan Error Eksplisit
         if (dep.error) throw dep.error;
         if (peng.error) throw peng.error;
         if (oms.error) throw oms.error;
@@ -415,28 +431,21 @@ function updateDbStatus(ok) {
     }
 }
 
-// Simpan/update satu record ke Supabase
 async function upsertRecord(table, record) {
     if (!supabaseClient) throw new Error("Koneksi Supabase terputus!");
-    
-    // PERBAIKAN: Gunakan .select() agar Supabase membalas dengan data yang baru saja masuk
-    // Jika RLS memblokir, .select() akan mendeteksi data kosong
     const { data, error } = await supabaseClient.from(table).upsert(record, { onConflict: 'id' }).select();
-    
     if (error) throw error;
     if (!data || data.length === 0) {
         throw new Error("RLS AKTIF! Database menolak menyimpan data ini.");
     }
 }
 
-// Hapus satu record dari Supabase
 async function deleteRecord(table, id) {
     if (!supabaseClient) throw new Error("Koneksi Supabase terputus!");
     const { error } = await supabaseClient.from(table).delete().eq('id', id);
     if (error) throw error;
 }
 
-// Simpan log revisi
 async function insertLog(logObj) {
     if (!supabaseClient) return;
     const { data, error } = await supabaseClient.from('log_revisi').insert(logObj).select();
@@ -447,7 +456,6 @@ async function insertLog(logObj) {
     }
 }
 
-// Peta nama tabel
 const TABLE_MAP = {
     deposit: 'deposit', pengeluaran: 'pengeluaran', omset: 'omset', withdraw: 'withdraw'
 };
@@ -461,7 +469,8 @@ const menuItems = [
     { id: 'pengeluaran', icon: 'fa-solid fa-money-bill-transfer', label: 'Biaya',      mobile: true  },
     { id: 'omset',       icon: 'fa-solid fa-arrow-trend-up',      label: 'Omset',      mobile: true  },
     { id: 'withdraw',    icon: 'fa-solid fa-hand-holding-dollar', label: 'Withdraw',   mobile: false },
-    { id: 'laporan',     icon: 'fa-solid fa-file-invoice-dollar', label: 'Laporan',    mobile: true  },
+    { id: 'laporan',     icon: 'fa-solid fa-file-invoice-dollar', label: 'Laporan',    mobile: false },
+    { id: 'rekap',       icon: 'fa-solid fa-file-pdf',            label: 'Rekap PDF',  mobile: true  }, // Menu baru
     { id: 'log',         icon: 'fa-solid fa-clock-rotate-left',   label: 'Log Revisi', mobile: false }
 ];
 
@@ -559,12 +568,17 @@ function renderMenu() {
 function loadView(viewId) {
     appState.currentView = viewId;
     renderMenu();
-    const titleMap = { dashboard:'Dashboard', deposit:'Deposit Modal', pengeluaran:'Biaya Operasional', omset:'Omset Ads', withdraw:'Riwayat Withdraw', laporan:'Laporan Keuangan', log:'Log Revisi' };
+    const titleMap = { 
+        dashboard:'Dashboard', deposit:'Deposit Modal', pengeluaran:'Biaya Operasional', 
+        omset:'Omset Ads', withdraw:'Riwayat Withdraw', laporan:'Laporan Total', 
+        rekap:'Rekap Bulanan (PDF)', log:'Log Revisi' 
+    };
     document.getElementById('page-title').textContent = titleMap[viewId] || viewId;
     const area = document.getElementById('content-area');
     area.innerHTML = `<div class="flex flex-col justify-center items-center h-64 gap-4">
         <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
         <p class="text-sm font-bold text-slate-400 animate-pulse">Memuat data...</p></div>`;
+    
     setTimeout(() => {
         switch (viewId) {
             case 'dashboard':   renderDashboard(area); break;
@@ -573,13 +587,14 @@ function loadView(viewId) {
             case 'omset':       renderTableCRUD(area, 'omset',       'Omset Ads',         ['Bulan',   'Keterangan','Nominal']);                break;
             case 'withdraw':    renderTableCRUD(area, 'withdraw',    'Penarikan Dividen', ['Tanggal', 'Pemodal',   'Keterangan', 'Nominal']); break;
             case 'laporan':     renderLaporan(area); break;
+            case 'rekap':       renderRekapBulanan(area); break; // Panggil render rekap
             case 'log':         renderLogRevisi(area); break;
         }
     }, 100);
 }
 
 // ============================================================
-//  SUMMARY
+//  SUMMARY & REKAP HELPERS
 // ============================================================
 function getSummaryData() {
     const { deposit, pengeluaran, omset, withdraw } = appState.data;
@@ -592,6 +607,30 @@ function getSummaryData() {
     return { totalDeposit, totalBiaya, totalOmset, netMargin, totalWithdraw, dividenPerOrang };
 }
 
+// Mendapatkan daftar bulan YYYY-MM yang unik dari seluruh tabel
+function getAvailableMonths() {
+    const months = new Set();
+    appState.data.omset.forEach(o => { if(o.bulan) months.add(o.bulan); });
+    ['deposit', 'pengeluaran', 'withdraw'].forEach(type => {
+        appState.data[type].forEach(item => {
+            if(item.tanggal) months.add(item.tanggal.substring(0, 7));
+        });
+    });
+    return Array.from(months).sort().reverse(); // Terbaru di atas
+}
+
+// Mendapatkan data spesifik untuk satu bulan
+function getDataByMonth(monthStr) {
+    const omset = appState.data.omset.filter(o => o.bulan === monthStr);
+    const biaya = appState.data.pengeluaran.filter(p => p.tanggal && p.tanggal.startsWith(monthStr));
+    
+    const totalOmset = omset.reduce((s, i) => s + Number(i.nominal), 0);
+    const totalBiaya = biaya.reduce((s, i) => s + Number(i.nominal), 0);
+    const netMargin  = totalOmset - totalBiaya;
+    
+    return { omset, biaya, totalOmset, totalBiaya, netMargin };
+}
+
 // ============================================================
 //  RENDER: DASHBOARD
 // ============================================================
@@ -602,7 +641,7 @@ function renderDashboard(container) {
             <div class="absolute -right-10 -bottom-10 opacity-10"><i class="fa-solid fa-sack-dollar text-[12rem]"></i></div>
             <div class="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6">
                 <div>
-                    <p class="text-blue-100 font-bold mb-1 flex items-center gap-2"><i class="fa-solid fa-wallet"></i> Net Margin (Keuntungan)</p>
+                    <p class="text-blue-100 font-bold mb-1 flex items-center gap-2"><i class="fa-solid fa-wallet"></i> Net Margin (Keuntungan Global)</p>
                     <h4 class="text-4xl sm:text-5xl font-extrabold mb-2 tracking-tight ${s.netMargin < 0 ? 'text-red-300' : 'text-white'} break-all">${formatRp(s.netMargin)}</h4>
                     <p class="text-xs font-medium text-blue-200 bg-black/10 inline-block px-3 py-1.5 rounded-lg backdrop-blur-sm">Total Omset dikurangi Biaya Operasional</p>
                 </div>
@@ -635,46 +674,6 @@ function renderDashboard(container) {
                 <div class="relative z-10">
                     <p class="text-[10px] font-extrabold text-emerald-500 uppercase tracking-widest mb-1">Total Omset</p>
                     <h4 class="text-xl font-bold text-emerald-600 break-all">${formatRp(s.totalOmset)}</h4>
-                </div>
-            </div>
-        </div>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white rounded-[1.5rem] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100">
-                <div class="flex justify-between items-center mb-5">
-                    <h3 class="font-bold text-slate-800 text-lg">Withdraw Terakhir</h3>
-                    <button onclick="loadView('withdraw')" class="text-xs font-extrabold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">Lihat Semua</button>
-                </div>
-                <div class="space-y-4">
-                    ${appState.data.withdraw.slice(-3).reverse().map(w => `
-                        <div class="flex items-center justify-between group">
-                            <div class="flex items-center gap-4">
-                                <div class="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 flex-shrink-0 group-hover:scale-110 transition-transform"><i class="fa-solid fa-hand-holding-dollar text-lg"></i></div>
-                                <div>
-                                    <p class="font-bold text-sm text-slate-800">${w.pemodal}</p>
-                                    <p class="text-xs text-slate-500 font-medium">${w.tanggal} · ${w.keterangan}</p>
-                                </div>
-                            </div>
-                            <span class="font-bold text-amber-600 text-sm">-${formatRp(w.nominal)}</span>
-                        </div>`).join('') || `<div class="text-center py-6 text-slate-400 font-medium text-sm">Belum ada penarikan.</div>`}
-                </div>
-            </div>
-            <div class="bg-white rounded-[1.5rem] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100">
-                <div class="flex justify-between items-center mb-5">
-                    <h3 class="font-bold text-slate-800 text-lg">Omset Terakhir</h3>
-                    <button onclick="loadView('omset')" class="text-xs font-extrabold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">Lihat Semua</button>
-                </div>
-                <div class="space-y-4">
-                    ${appState.data.omset.slice(-3).reverse().map(o => `
-                        <div class="flex items-center justify-between group">
-                            <div class="flex items-center gap-4">
-                                <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 flex-shrink-0 group-hover:scale-110 transition-transform"><i class="fa-solid fa-money-bill-wave text-lg"></i></div>
-                                <div>
-                                    <p class="font-bold text-sm text-slate-800">${o.bulan}</p>
-                                    <p class="text-xs text-slate-500 font-medium">${o.keterangan}</p>
-                                </div>
-                            </div>
-                            <span class="font-bold text-emerald-600 text-sm">+${formatRp(o.nominal)}</span>
-                        </div>`).join('') || `<div class="text-center py-6 text-slate-400 font-medium text-sm">Belum ada data omset.</div>`}
                 </div>
             </div>
         </div>`;
@@ -757,7 +756,7 @@ function renderTableCRUD(container, type, title, headers) {
 }
 
 // ============================================================
-//  RENDER: LAPORAN
+//  RENDER: LAPORAN TOTAL
 // ============================================================
 function renderLaporan(container) {
     const s = getSummaryData();
@@ -769,9 +768,10 @@ function renderLaporan(container) {
             <div class="bg-white rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-200 overflow-hidden text-center p-8 relative">
                 <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-blue-400"></div>
                 <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-600 text-2xl shadow-sm"><i class="fa-solid fa-file-invoice-dollar"></i></div>
-                <h2 class="text-3xl font-extrabold text-slate-800 mb-2">Laporan Keuangan</h2>
+                <h2 class="text-3xl font-extrabold text-slate-800 mb-2">Laporan Keseluruhan</h2>
                 <p class="text-slate-500 font-semibold">Ringkasan Total Seluruh Transaksi & Pembagian Dividen</p>
             </div>
+            ...
             <div class="bg-white rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-200 p-6 sm:p-8">
                 <div class="space-y-4 mb-8">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 p-5 bg-emerald-50/50 border border-emerald-100 rounded-2xl">
@@ -791,7 +791,7 @@ function renderLaporan(container) {
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-6 bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-2xl shadow-lg shadow-blue-500/20">
                         <div>
                             <span class="font-bold text-lg block">Net Margin</span>
-                            <span class="text-sm font-medium text-blue-200">(Keuntungan)</span>
+                            <span class="text-sm font-medium text-blue-200">(Keuntungan Keseluruhan)</span>
                         </div>
                         <span class="font-extrabold text-4xl sm:text-3xl self-end sm:self-auto ${s.netMargin < 0 ? 'text-red-300' : 'text-white'} break-all">${formatRp(s.netMargin)}</span>
                     </div>
@@ -835,6 +835,171 @@ function renderLaporan(container) {
             </div>
         </div>`;
 }
+
+// ============================================================
+//  RENDER: REKAP BULANAN (FITUR BARU)
+// ============================================================
+window.changeRekapBulan = function(val) {
+    appState.selectedRekapBulan = val;
+    loadView('rekap');
+};
+
+function renderRekapBulanan(container) {
+    const availableMonths = getAvailableMonths();
+    
+    if(availableMonths.length === 0) {
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-20">
+                <div class="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mb-4 text-3xl"><i class="fa-solid fa-folder-open"></i></div>
+                <p class="text-slate-500 font-bold">Belum ada data transaksi tercatat.</p>
+            </div>`;
+        return;
+    }
+
+    // Set default month jika belum dipilih
+    if(!appState.selectedRekapBulan || !availableMonths.includes(appState.selectedRekapBulan)) {
+        appState.selectedRekapBulan = availableMonths[0];
+    }
+
+    const selectedMonth = appState.selectedRekapBulan;
+    const mData = getDataByMonth(selectedMonth);
+
+    // Bikin dropdown opsi bulan
+    const optionsHtml = availableMonths.map(m => 
+        `<option value="${m}" ${m === selectedMonth ? 'selected' : ''}>${formatBulan(m)}</option>`
+    ).join('');
+
+    // HTML untuk Area PDF (bersih tanpa shadow/hover ruwet agar print bagus)
+    const pdfHtml = `
+        <div id="pdf-content" class="pdf-export-area p-8 bg-white border border-slate-200 mx-auto max-w-4xl" style="font-family: 'Poppins', sans-serif;">
+            
+            <div style="border-bottom: 2px solid #1e40af; padding-bottom: 20px; margin-bottom: 20px; text-align: center;">
+                <h1 style="color: #1e40af; font-size: 24px; font-weight: 800; margin: 0;">SOARA.AI</h1>
+                <p style="color: #64748b; font-size: 14px; margin: 5px 0 0 0;">Laporan Keuangan Bulanan</p>
+                <h2 style="color: #0f172a; font-size: 18px; font-weight: bold; margin: 15px 0 0 0;">Periode: ${formatBulan(selectedMonth)}</h2>
+            </div>
+
+            <!-- Summary Box -->
+            <div style="display: flex; gap: 15px; margin-bottom: 30px;">
+                <div style="flex: 1; padding: 15px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px;">
+                    <p style="margin: 0; font-size: 12px; color: #047857; font-weight: bold;">Total Omset</p>
+                    <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: bold; color: #065f46;">${formatRp(mData.totalOmset)}</p>
+                </div>
+                <div style="flex: 1; padding: 15px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;">
+                    <p style="margin: 0; font-size: 12px; color: #b91c1c; font-weight: bold;">Total Biaya</p>
+                    <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: bold; color: #991b1b;">- ${formatRp(mData.totalBiaya)}</p>
+                </div>
+                <div style="flex: 1; padding: 15px; background: ${mData.netMargin >= 0 ? '#eff6ff' : '#fef2f2'}; border: 1px solid ${mData.netMargin >= 0 ? '#bfdbfe' : '#fecaca'}; border-radius: 8px;">
+                    <p style="margin: 0; font-size: 12px; color: ${mData.netMargin >= 0 ? '#1d4ed8' : '#b91c1c'}; font-weight: bold;">Net Margin</p>
+                    <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: bold; color: ${mData.netMargin >= 0 ? '#1e40af' : '#991b1b'};">${formatRp(mData.netMargin)}</p>
+                </div>
+            </div>
+
+            <!-- Tabel Biaya -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="font-size: 16px; color: #334155; margin-bottom: 10px; border-left: 4px solid #ef4444; padding-left: 8px;">Rincian Pengeluaran</h3>
+                ${mData.biaya.length > 0 ? `
+                    <table>
+                        <thead><tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th style="text-align: right;">Nominal</th></tr></thead>
+                        <tbody>
+                            ${mData.biaya.map(b => `
+                                <tr>
+                                    <td style="font-size: 12px;">${b.tanggal}</td>
+                                    <td style="font-size: 12px;">${b.kategori}</td>
+                                    <td style="font-size: 12px;">${b.keterangan}</td>
+                                    <td style="font-size: 12px; text-align: right; color: #dc2626;">-${formatRp(b.nominal)}</td>
+                                </tr>
+                            `).join('')}
+                            <tr>
+                                <td colspan="3" style="text-align: right; font-weight: bold;">TOTAL PENGELUARAN</td>
+                                <td style="text-align: right; font-weight: bold; color: #dc2626;">-${formatRp(mData.totalBiaya)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                ` : `<p style="font-size: 13px; color: #94a3b8; font-style: italic;">Tidak ada pengeluaran di bulan ini.</p>`}
+            </div>
+
+            <!-- Tabel Omset -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="font-size: 16px; color: #334155; margin-bottom: 10px; border-left: 4px solid #10b981; padding-left: 8px;">Rincian Omset</h3>
+                ${mData.omset.length > 0 ? `
+                    <table>
+                        <thead><tr><th>Bulan</th><th>Keterangan</th><th style="text-align: right;">Nominal</th></tr></thead>
+                        <tbody>
+                            ${mData.omset.map(o => `
+                                <tr>
+                                    <td style="font-size: 12px;">${o.bulan}</td>
+                                    <td style="font-size: 12px;">${o.keterangan}</td>
+                                    <td style="font-size: 12px; text-align: right; color: #059669;">+${formatRp(o.nominal)}</td>
+                                </tr>
+                            `).join('')}
+                            <tr>
+                                <td colspan="2" style="text-align: right; font-weight: bold;">TOTAL OMSET</td>
+                                <td style="text-align: right; font-weight: bold; color: #059669;">+${formatRp(mData.totalOmset)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                ` : `<p style="font-size: 13px; color: #94a3b8; font-style: italic;">Tidak ada omset di bulan ini.</p>`}
+            </div>
+
+            <!-- Footer Info -->
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #cbd5e1; font-size: 11px; color: #64748b; text-align: center;">
+                <p>Dokumen ini dihasilkan secara otomatis oleh Sistem SOARA.AI pada ${new Date().toLocaleString('id-ID')}.</p>
+            </div>
+        </div>
+    `;
+
+    // UI Kontrol di luar PDF
+    container.innerHTML = `
+        <div class="max-w-4xl mx-auto mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <div class="w-full sm:w-auto">
+                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Pilih Bulan</label>
+                <div class="relative">
+                    <select onchange="window.changeRekapBulan(this.value)" class="w-full sm:w-64 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-bold text-slate-700 appearance-none">
+                        ${optionsHtml}
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500"><i class="fa-solid fa-chevron-down"></i></div>
+                </div>
+            </div>
+            
+            <button onclick="downloadPDF()" class="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md shadow-red-500/30 flex items-center justify-center gap-2 transform active:scale-95">
+                <i class="fa-solid fa-file-pdf"></i> Download PDF
+            </button>
+        </div>
+
+        <div class="overflow-x-auto pb-4">
+            <!-- Ini area yang akan di konversi ke PDF -->
+            ${pdfHtml}
+        </div>
+    `;
+}
+
+window.downloadPDF = function() {
+    const element = document.getElementById('pdf-content');
+    const month = appState.selectedRekapBulan;
+    
+    showLoading('Membuat PDF...');
+    
+    const opt = {
+        margin:       10,
+        filename:     `Rekap_Keuangan_SOARA_${month}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    // Timeout untuk membiarkan UI render tulisan loading
+    setTimeout(() => {
+        html2pdf().set(opt).from(element).save().then(() => {
+            hideLoading();
+            showToast('PDF Berhasil Diunduh!');
+        }).catch(err => {
+            console.error('PDF Error:', err);
+            hideLoading();
+            showToast('Gagal membuat PDF', 'error');
+        });
+    }, 500);
+};
 
 // ============================================================
 //  RENDER: LOG REVISI
@@ -1005,7 +1170,7 @@ async function handleFormSubmit(e) {
             const alasan  = document.getElementById('edit-reason').value;
             const updated = { ...oldData, ...formData };
             
-            await upsertRecord(TABLE_MAP[type], updated); // Hard Save ke Supabase
+            await upsertRecord(TABLE_MAP[type], updated); 
             
             appState.data[type][idx] = updated;
             const logObj = {
@@ -1019,7 +1184,7 @@ async function handleFormSubmit(e) {
             const prefix = type === 'deposit' ? 'DEP' : type === 'pengeluaran' ? 'PENG' : type === 'withdraw' ? 'WD' : 'OMS';
             const newRecord = { id: genId(prefix), timestamp: ts, ...formData };
             
-            await upsertRecord(TABLE_MAP[type], newRecord); // Hard Save ke Supabase
+            await upsertRecord(TABLE_MAP[type], newRecord); 
             
             if (!appState.data[type]) appState.data[type] = [];
             appState.data[type].push(newRecord);
@@ -1029,7 +1194,7 @@ async function handleFormSubmit(e) {
         showToast(isEdit ? 'Data berhasil diperbarui di Server!' : 'Data berhasil masuk Server!');
     } catch(err) {
         console.error('[SOARA] Gagal simpan:', err);
-        showToast(`${err.message}`, 'error'); // Sekarang error ini akan langsung muncul jika Supabase menolak
+        showToast(`${err.message}`, 'error'); 
     } finally {
         btn.innerHTML = 'Simpan Data';
         btn.disabled  = false;
