@@ -127,8 +127,8 @@
                     </button>
                     <!-- Setup Config Banner -->
                     <div id="config-banner" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
-                        <p class="text-amber-700 font-bold text-xs"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Supabase belum dikonfigurasi!</p>
-                        <p class="text-amber-600 text-xs mt-1">Edit SUPABASE_URL & SUPABASE_KEY di bagian konfigurasi kode.</p>
+                        <p class="text-amber-700 font-bold text-xs"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Supabase gagal dimuat!</p>
+                        <p class="text-amber-600 text-xs mt-1">Pastikan koneksi internet stabil dan URL benar.</p>
                     </div>
                 </div>
             </form>
@@ -254,7 +254,7 @@
     </div>
 
     <!-- ========== TOAST ========== -->
-    <div id="toast" class="bg-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-slate-100 min-w-[300px]">
+    <div id="toast" class="bg-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-slate-100 min-w-[300px] z-[999999]">
         <div id="toast-icon-wrapper" class="w-10 h-10 rounded-full flex items-center justify-center bg-emerald-50 flex-shrink-0">
             <i id="toast-icon" class="fa-solid fa-check text-emerald-500 text-xl"></i>
         </div>
@@ -283,20 +283,18 @@ const USERS = [
 const SESSION_KEY = 'soara_session';
 
 // ============================================================
-//  INIT SUPABASE (Perbaikan Penamaan Variabel)
+//  INIT SUPABASE
 // ============================================================
-let supabaseClient = null; // DIUBAH AGAR TIDAK BENTROK
-let dbConnected = false;
+let supabaseClient = null;
 
 function initSupabase() {
-    if (SUPABASE_URL === 'GANTI_DENGAN_URL_SUPABASE_ANDA') {
+    if (!window.supabase) {
         document.getElementById('config-banner').classList.remove('hidden');
-        console.warn('[SOARA] Supabase belum dikonfigurasi. Jalankan dalam mode offline (localStorage).');
+        console.error('[SOARA] Library Supabase gagal dimuat dari CDN!');
         return false;
     }
     try {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        dbConnected = true;
         return true;
     } catch(e) {
         console.error('[SOARA] Gagal init Supabase:', e);
@@ -327,7 +325,7 @@ function showToast(msg, type = 'success') {
     } else {
         icon.className = 'fa-solid fa-exclamation text-red-500 text-xl';
         wrapper.className = 'w-10 h-10 rounded-full flex items-center justify-center bg-red-50 flex-shrink-0';
-        title.textContent = 'ERROR SUPABASE';
+        title.textContent = 'SYSTEM ERROR';
         title.className = 'text-[10px] font-extrabold text-red-500 uppercase tracking-widest mb-0.5';
     }
     toast.classList.add('show');
@@ -350,10 +348,8 @@ function togglePasswordVisibility() {
 }
 
 // ============================================================
-//  DATA LAYER — Supabase + fallback localStorage
+//  DATA LAYER — SUPABASE ONLY (TANPA LOCALSTORAGE)
 // ============================================================
-const LOCAL_KEY = 'soara_data_v2';
-
 const defaultData = {
     deposit: [], pengeluaran: [], omset: [], withdraw: [], logRevisi: []
 };
@@ -367,18 +363,13 @@ let appState = {
 
 // Load semua data dari Supabase
 async function loadAllData() {
-    if (!dbConnected) {
-        try {
-            const raw = localStorage.getItem(LOCAL_KEY);
-            const parsed = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(defaultData));
-            if (!parsed.withdraw)   parsed.withdraw = [];
-            if (!parsed.logRevisi)  parsed.logRevisi = [];
-            appState.data = parsed;
-        } catch { appState.data = JSON.parse(JSON.stringify(defaultData)); }
+    if (!supabaseClient) {
+        showToast('Koneksi Supabase terputus! Muat ulang halaman.', 'error');
+        updateDbStatus(false);
         return;
     }
 
-    showLoading('Memuat data dari Supabase...');
+    showLoading('Memuat data dari Server...');
     try {
         const [dep, peng, oms, wd, log] = await Promise.all([
             supabaseClient.from('deposit').select('*').order('timestamp', { ascending: true }),
@@ -403,7 +394,7 @@ async function loadAllData() {
         updateDbStatus(true);
     } catch(e) {
         console.error('[SOARA] Gagal memuat data:', e);
-        showToast(`Gagal Load: ${e.message || 'Cek RLS atau Tabel Database'}`, 'error');
+        showToast(`Gagal Load: Tabel tidak ada atau RLS terkunci!`, 'error');
         updateDbStatus(false);
     } finally {
         hideLoading();
@@ -426,30 +417,34 @@ function updateDbStatus(ok) {
 
 // Simpan/update satu record ke Supabase
 async function upsertRecord(table, record) {
-    if (!dbConnected) {
-        localStorage.setItem(LOCAL_KEY, JSON.stringify(appState.data));
-        return;
-    }
-    const { error } = await supabaseClient.from(table).upsert(record, { onConflict: 'id' });
+    if (!supabaseClient) throw new Error("Koneksi Supabase terputus!");
+    
+    // PERBAIKAN: Gunakan .select() agar Supabase membalas dengan data yang baru saja masuk
+    // Jika RLS memblokir, .select() akan mendeteksi data kosong
+    const { data, error } = await supabaseClient.from(table).upsert(record, { onConflict: 'id' }).select();
+    
     if (error) throw error;
+    if (!data || data.length === 0) {
+        throw new Error("RLS AKTIF! Database menolak menyimpan data ini.");
+    }
 }
 
 // Hapus satu record dari Supabase
 async function deleteRecord(table, id) {
-    if (!dbConnected) {
-        localStorage.setItem(LOCAL_KEY, JSON.stringify(appState.data));
-        return;
-    }
+    if (!supabaseClient) throw new Error("Koneksi Supabase terputus!");
     const { error } = await supabaseClient.from(table).delete().eq('id', id);
     if (error) throw error;
 }
 
 // Simpan log revisi
 async function insertLog(logObj) {
-    if (!dbConnected) { appState.data.logRevisi.push(logObj); localStorage.setItem(LOCAL_KEY, JSON.stringify(appState.data)); return; }
-    const { error } = await supabaseClient.from('log_revisi').insert(logObj);
-    if (error) console.error('[SOARA] Gagal simpan log:', error);
-    else appState.data.logRevisi.push(logObj);
+    if (!supabaseClient) return;
+    const { data, error } = await supabaseClient.from('log_revisi').insert(logObj).select();
+    if (error) {
+        console.error('[SOARA] Gagal simpan log:', error);
+    } else if (data && data.length > 0) {
+        appState.data.logRevisi.push(logObj);
+    }
 }
 
 // Peta nama tabel
@@ -1009,7 +1004,9 @@ async function handleFormSubmit(e) {
             const oldData = appState.data[type][idx];
             const alasan  = document.getElementById('edit-reason').value;
             const updated = { ...oldData, ...formData };
-            await upsertRecord(TABLE_MAP[type], updated);
+            
+            await upsertRecord(TABLE_MAP[type], updated); // Hard Save ke Supabase
+            
             appState.data[type][idx] = updated;
             const logObj = {
                 id: genId('LOG'), timestamp: ts, jenis: type.toUpperCase(),
@@ -1021,16 +1018,18 @@ async function handleFormSubmit(e) {
         } else {
             const prefix = type === 'deposit' ? 'DEP' : type === 'pengeluaran' ? 'PENG' : type === 'withdraw' ? 'WD' : 'OMS';
             const newRecord = { id: genId(prefix), timestamp: ts, ...formData };
-            await upsertRecord(TABLE_MAP[type], newRecord);
+            
+            await upsertRecord(TABLE_MAP[type], newRecord); // Hard Save ke Supabase
+            
             if (!appState.data[type]) appState.data[type] = [];
             appState.data[type].push(newRecord);
         }
         closeModal();
         loadView(type);
-        showToast(isEdit ? 'Data berhasil diperbarui!' : 'Data berhasil ditambahkan!');
+        showToast(isEdit ? 'Data berhasil diperbarui di Server!' : 'Data berhasil masuk Server!');
     } catch(err) {
         console.error('[SOARA] Gagal simpan:', err);
-        showToast(`Gagal: ${err.message || 'Cek koneksi/RLS database!'}`, 'error');
+        showToast(`${err.message}`, 'error'); // Sekarang error ini akan langsung muncul jika Supabase menolak
     } finally {
         btn.innerHTML = 'Simpan Data';
         btn.disabled  = false;
@@ -1065,10 +1064,10 @@ async function executeDelete() {
         await insertLog(logObj);
         closeDeleteModal();
         loadView(type);
-        showToast('Data berhasil dihapus.', 'error');
+        showToast('Data berhasil dihapus dari Server.', 'success');
     } catch(err) {
         console.error('[SOARA] Gagal hapus:', err);
-        showToast(`Gagal: ${err.message || 'Cek koneksi/RLS database!'}`, 'error');
+        showToast(`Gagal: ${err.message}`, 'error');
     } finally {
         btn.innerHTML = 'Ya, Hapus';
         btn.disabled  = false;
