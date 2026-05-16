@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOARA.AI - Financial Management System</title>
+    <meta name="description" content="SOARA.AI - Sistem Manajemen Keuangan berbasis AI untuk bisnis digital">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f3f4f6;
+            overflow: hidden;
+        }
+
+        #soara-app-root {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background-color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .hide { display: none !important; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .sidebar-transition { transition: all 0.3s ease-in-out; }
+
+        /* Toast Notification */
+        #toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 99999;
+            transition: all 0.3s ease;
+            transform: translateY(80px);
+            opacity: 0;
+        }
+        #toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+<div id="soara-app-root">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="w-full h-full flex items-center justify-center bg-slate-900 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')">
+        <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"></div>
+        <div class="relative z-10 w-full max-w-md p-8 bg-white rounded-2xl shadow-2xl m-4">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
+                    <i class="fa-solid fa-chart-line text-white text-3xl"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-800">SOARA.AI</h1>
+                <p class="text-slate-500 text-sm mt-1">Financial Management System</p>
+            </div>
+
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Username</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fa-solid fa-user text-slate-400"></i>
+                            </div>
+                            <input type="text" id="login-username" required autocomplete="username"
+                                class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                placeholder="Masukkan username">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fa-solid fa-lock text-slate-400"></i>
+                            </div>
+                            <input type="password" id="login-password" required autocomplete="current-password"
+                                class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                placeholder="••••••••">
+                            <button type="button" onclick="togglePasswordVisibility()"
+                                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+                                <i id="eye-icon" class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="login-alert" class="hidden bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        <span id="login-alert-msg">Username atau password salah!</span>
+                    </div>
+
+                    <button type="submit" id="btn-login"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <span>Masuk Sistem</span>
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                    </button>
+
+                    <!-- Demo credentials info -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-500">
+                        <p class="font-semibold text-slate-600 mb-1"><i class="fa-solid fa-circle-info mr-1"></i> Demo Credentials</p>
+                        <p>Admin: <code class="bg-slate-200 px-1 rounded">admin</code> / <code class="bg-slate-200 px-1 rounded">soara2024</code></p>
+                        <p class="mt-1">Peserta: <code class="bg-slate-200 px-1 rounded">peserta</code> / <code class="bg-slate-200 px-1 rounded">soara2024</code></p>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="main-app" class="hidden w-full h-full flex bg-slate-50">
+
+        <!-- Mobile Overlay -->
+        <div id="mobile-overlay" class="fixed inset-0 bg-slate-900/50 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar-transition fixed md:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-slate-200 flex flex-col transform -translate-x-full md:translate-x-0 h-full">
+            <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-md">
+                        <i class="fa-solid fa-chart-pie text-white text-sm"></i>
+                    </div>
+                    <span class="font-bold text-xl text-slate-800">SOARA.AI</span>
+                </div>
+                <button class="md:hidden text-slate-400 hover:text-slate-600" onclick="toggleSidebar()">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-4 flex-1 overflow-y-auto">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-2">Menu Utama</p>
+                <nav class="space-y-1" id="nav-menu"></nav>
+            </div>
+
+            <div class="p-4 border-t border-slate-100">
+                <div class="flex items-center gap-3 mb-4 px-2">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg" id="user-avatar">A</div>
+                    <div>
+                        <p class="text-sm font-semibold text-slate-800" id="user-name-display">Admin</p>
+                        <p class="text-xs text-slate-500" id="user-role-display">Pemodal</p>
+                    </div>
+                </div>
+                <button onclick="handleLogout()"
+                    class="w-full flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium">
+                    <i class="fa-solid fa-right-from-bracket"></i> Keluar
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col h-full overflow-hidden w-full">
+            <!-- Top Header -->
+            <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 z-10 flex-shrink-0">
+                <div class="flex items-center gap-4">
+                    <button class="md:hidden text-slate-500 hover:text-slate-700" onclick="toggleSidebar()">
+                        <i class="fa-solid fa-bars text-xl"></i>
+                    </button>
+                    <h2 class="text-lg font-semibold text-slate-800" id="page-title">Dashboard</h2>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-sm text-slate-500 hidden sm:block font-medium">
+                        <i class="fa-regular fa-calendar mr-1"></i>
+                        <span id="current-date"></span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <main class="flex-1 overflow-y-auto p-4 lg:p-8" id="content-area">
+                <!-- Injected by JS -->
+            </main>
+        </div>
+    </div>
+
+    <!-- Form Modal -->
+    <div id="form-modal" class="fixed inset-0 z-[99999] hidden flex items-center justify-center">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal()"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg m-4 flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-lg font-bold text-slate-800" id="modal-title">Form Input</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <form id="data-form" onsubmit="handleFormSubmit(event)">
+                    <input type="hidden" id="form-id">
+                    <input type="hidden" id="form-type">
+                    <div id="form-fields" class="space-y-4"></div>
+                    <div id="reason-field" class="hidden mt-4 pt-4 border-t border-slate-100">
+                        <label class="block text-sm font-medium text-amber-600 mb-1">Alasan Revisi (Wajib)</label>
+                        <input type="text" id="edit-reason"
+                            class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                            placeholder="Kenapa data ini diubah?">
+                    </div>
+                    <div class="mt-8 flex justify-end gap-3">
+                        <button type="button" onclick="closeModal()"
+                            class="px-5 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Batal</button>
+                        <button type="submit"
+                            class="px-5 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg transition-colors shadow-lg shadow-blue-500/30">Simpan Data</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Modal -->
+    <div id="delete-modal" class="fixed inset-0 z-[99999] hidden flex items-center justify-center">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-sm m-4 p-6 text-center">
+            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fa-solid fa-triangle-exclamation text-red-600 text-3xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 mb-2">Hapus Data?</h3>
+            <p class="text-sm text-slate-500 mb-6">Data yang dihapus tidak dapat dikembalikan. Yakin ingin melanjutkan?</p>
+            <div class="flex justify-center gap-3">
+                <button onclick="closeDeleteModal()"
+                    class="px-5 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Batal</button>
+                <button onclick="executeDelete()"
+                    class="px-5 py-2 bg-red-600 text-white font-medium hover:bg-red-700 rounded-lg transition-colors shadow-lg shadow-red-500/30">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="bg-slate-800 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-sm font-medium">
+        <i id="toast-icon" class="fa-solid fa-check-circle text-emerald-400"></i>
+        <span id="toast-msg">Berhasil disimpan!</span>
+    </div>
+</div>
+
+<script>
+// ============================================================
+//  KONFIGURASI
+//  Ganti USERS sesuai kebutuhan (untuk production, gunakan backend)
+// ============================================================
+const USERS = [
+    { username: 'admin',   password: 'soara2024', nama: 'M Mughni Labib', role: 'Admin Pemodal' },
+    { username: 'peserta', password: 'soara2024', nama: 'M Nurkholis',     role: 'Peserta'       }
+];
+
+// Storage key untuk localStorage
+const STORAGE_KEY = 'soara_data_v1';
+const SESSION_KEY = 'soara_session';
+
+// ============================================================
+//  UTILITIES
+// ============================================================
+const formatRp = (angka) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0);
+
+function showToast(msg, type = 'success') {
+    const toast = document.getElementById('toast');
+    const icon  = document.getElementById('toast-icon');
+    document.getElementById('toast-msg').textContent = msg;
+    icon.className = type === 'success'
+        ? 'fa-solid fa-check-circle text-emerald-400'
+        : 'fa-solid fa-circle-exclamation text-red-400';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function togglePasswordVisibility() {
+    const input = document.getElementById('login-password');
+    const icon  = document.getElementById('eye-icon');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-solid fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fa-solid fa-eye';
+    }
+}
+
+function genId(prefix) {
+    return prefix + '-' + Date.now();
+}
+
+function nowTimestamp() {
+    return new Date().toISOString().replace('T', ' ').slice(0, 19);
+}
+
+// ============================================================
+//  DATA LAYER  (localStorage)
+// ============================================================
+const defaultData = {
+    deposit: [
+        { id: 'DEP-1', timestamp: '2026-05-10 10:00:00', tanggal: '2026-05-10', pemodal: 'M Mughni Labib', nominal: 50000000, keterangan: 'Modal Awal', penginput: 'admin' },
+        { id: 'DEP-2', timestamp: '2026-05-12 11:30:00', tanggal: '2026-05-12', pemodal: 'M Nurkholis', nominal: 50000000, keterangan: 'Modal Awal', penginput: 'admin' }
+    ],
+    pengeluaran: [
+        { id: 'PENG-1', timestamp: '2026-05-14 09:00:00', tanggal: '2026-05-14', kategori: 'Biaya Iklan', nominal: 15000000, keterangan: 'Topup Meta Ads', penginput: 'admin' },
+        { id: 'PENG-2', timestamp: '2026-05-15 14:00:00', tanggal: '2026-05-15', kategori: 'Software/Tools', nominal: 2500000, keterangan: 'Langganan SaaS Tahunan', penginput: 'admin' }
+    ],
+    omset: [
+        { id: 'OMS-1', timestamp: '2026-05-16 08:00:00', bulan: '2026-05', nominal: 45000000, keterangan: 'Omset Minggu 1-2 Mei', penginput: 'admin' }
+    ],
+    logRevisi: [
+        { id: 'LOG-1', timestamp: '2026-05-15 10:00:00', jenis: 'Pengeluaran', id_transaksi: 'PENG-1', perubahan: 'Nominal dari Rp 10.000.000 menjadi Rp 15.000.000', pengubah: 'admin' }
+    ]
+};
+
+function loadData() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(defaultData));
+    } catch {
+        return JSON.parse(JSON.stringify(defaultData));
+    }
+}
+
+function saveData(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// ============================================================
+//  APP STATE
+// ============================================================
+let appState = {
+    user: null,
+    currentView: 'dashboard',
+    data: loadData(),
+    deleteTarget: null
+};
+
+const menuItems = [
+    { id: 'dashboard',   icon: 'fa-solid fa-chart-line',          label: 'Dashboard' },
+    { id: 'deposit',     icon: 'fa-solid fa-wallet',               label: 'Deposit Modal' },
+    { id: 'pengeluaran', icon: 'fa-solid fa-money-bill-transfer',  label: 'Biaya Operasional' },
+    { id: 'omset',       icon: 'fa-solid fa-sack-dollar',          label: 'Omset Iklan' },
+    { id: 'laporan',     icon: 'fa-solid fa-file-invoice-dollar',  label: 'Laporan & Dividen' },
+    { id: 'log',         icon: 'fa-solid fa-clock-rotate-left',    label: 'Log Revisi' }
+];
+
+// ============================================================
+//  INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('current-date').textContent =
+        new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const savedSession = sessionStorage.getItem(SESSION_KEY);
+    if (savedSession) {
+        appState.user = JSON.parse(savedSession);
+        showMainApp();
+    }
+});
+
+// ============================================================
+//  AUTH
+// ============================================================
+function handleLogin(e) {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    const btn      = document.getElementById('btn-login');
+    const alertBox = document.getElementById('login-alert');
+
+    btn.innerHTML  = '<i class="fa-solid fa-circle-notch fa-spin"></i> Memproses...';
+    btn.disabled   = true;
+    alertBox.classList.add('hidden');
+
+    setTimeout(() => {
+        const user = USERS.find(u => u.username === username && u.password === password);
+        if (user) {
+            const userData = { username: user.username, nama: user.nama, role: user.role };
+            appState.user  = userData;
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify(userData));
+            showMainApp();
+        } else {
+            document.getElementById('login-alert-msg').textContent = 'Username atau password salah!';
+            alertBox.classList.remove('hidden');
+            btn.innerHTML = '<span>Masuk Sistem</span><i class="fa-solid fa-arrow-right-to-bracket"></i>';
+            btn.disabled  = false;
+        }
+    }, 700);
+}
+
+function handleLogout() {
+    sessionStorage.removeItem(SESSION_KEY);
+    appState.user = null;
+    document.getElementById('main-app').classList.add('hidden');
+    document.getElementById('login-screen').classList.remove('hidden');
+    const btn = document.getElementById('btn-login');
+    btn.innerHTML = '<span>Masuk Sistem</span><i class="fa-solid fa-arrow-right-to-bracket"></i>';
+    btn.disabled = false;
+    document.getElementById('login-form').reset();
+}
+
+// ============================================================
+//  NAVIGATION
+// ============================================================
+function showMainApp() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('main-app').classList.remove('hidden');
+    document.getElementById('user-name-display').textContent  = appState.user.nama;
+    document.getElementById('user-role-display').textContent  = appState.user.role;
+    document.getElementById('user-avatar').textContent        = appState.user.nama.charAt(0).toUpperCase();
+    renderMenu();
+    loadView('dashboard');
+}
+
+function toggleSidebar() {
+    const sidebar  = document.getElementById('sidebar');
+    const overlay  = document.getElementById('mobile-overlay');
+    const isHidden = sidebar.classList.contains('-translate-x-full');
+    sidebar.classList.toggle('-translate-x-full', !isHidden);
+    overlay.classList.toggle('hidden', !isHidden);
+}
+
+function renderMenu() {
+    const nav = document.getElementById('nav-menu');
+    nav.innerHTML = '';
+    menuItems.forEach(item => {
+        const isActive = appState.currentView === item.id;
+        const btn = document.createElement('button');
+        btn.className = `w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm text-left
+            ${isActive ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`;
+        btn.innerHTML = `
+            <div class="${isActive ? 'text-blue-600' : 'text-slate-400'} w-5 text-center">
+                <i class="${item.icon} ${isActive ? '' : 'opacity-70'}"></i>
+            </div>
+            <span>${item.label}</span>`;
+        btn.onclick = () => {
+            loadView(item.id);
+            if (window.innerWidth < 768) toggleSidebar();
+        };
+        nav.appendChild(btn);
+    });
+}
+
+function loadView(viewId) {
+    appState.currentView = viewId;
+    renderMenu();
+    const titleObj = menuItems.find(m => m.id === viewId);
+    document.getElementById('page-title').textContent = titleObj ? titleObj.label : 'Dashboard';
+    const area = document.getElementById('content-area');
+    area.innerHTML = '<div class="flex justify-center items-center h-64"><i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-500"></i></div>';
+    setTimeout(() => {
+        switch (viewId) {
+            case 'dashboard':   renderDashboard(area);   break;
+            case 'deposit':     renderTableCRUD(area, 'deposit',     'Deposit Modal',       ['Tanggal', 'Pemodal',   'Keterangan', 'Nominal']); break;
+            case 'pengeluaran': renderTableCRUD(area, 'pengeluaran', 'Biaya Operasional',   ['Tanggal', 'Kategori',  'Keterangan', 'Nominal']); break;
+            case 'omset':       renderTableCRUD(area, 'omset',       'Omset Ads',           ['Bulan',   'Keterangan','Nominal']);                break;
+            case 'laporan':     renderLaporan(area);     break;
+            case 'log':         renderLogRevisi(area);   break;
+        }
+    }, 120);
+}
+
+// ============================================================
+//  SUMMARY HELPER
+// ============================================================
+function getSummaryData() {
+    const { deposit, pengeluaran, omset } = appState.data;
+    const totalDeposit = deposit.reduce((s, i)    => s + Number(i.nominal), 0);
+    const totalBiaya   = pengeluaran.reduce((s, i) => s + Number(i.nominal), 0);
+    const totalOmset   = omset.reduce((s, i)       => s + Number(i.nominal), 0);
+    const netMargin    = totalOmset - totalBiaya;
+    return { totalDeposit, totalBiaya, totalOmset, netMargin };
+}
+
+// ============================================================
+//  RENDER: DASHBOARD
+// ============================================================
+function renderDashboard(container) {
+    const s = getSummaryData();
+    const dividen = s.netMargin > 0 ? s.netMargin / 2 : 0;
+
+    container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 relative overflow-hidden group">
+                <div class="absolute -right-6 -top-6 w-24 h-24 bg-blue-50 rounded-full group-hover:scale-150 transition-transform duration-500 opacity-50"></div>
+                <div class="relative z-10 flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Total Modal (Deposit)</p>
+                        <h4 class="text-2xl font-bold text-slate-800">${formatRp(s.totalDeposit)}</h4>
+                    </div>
+                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-wallet"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 relative overflow-hidden group">
+                <div class="absolute -right-6 -top-6 w-24 h-24 bg-red-50 rounded-full group-hover:scale-150 transition-transform duration-500 opacity-50"></div>
+                <div class="relative z-10 flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Total Biaya Operasional</p>
+                        <h4 class="text-2xl font-bold text-slate-800">${formatRp(s.totalBiaya)}</h4>
+                    </div>
+                    <div class="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-arrow-trend-down"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 relative overflow-hidden group">
+                <div class="absolute -right-6 -top-6 w-24 h-24 bg-green-50 rounded-full group-hover:scale-150 transition-transform duration-500 opacity-50"></div>
+                <div class="relative z-10 flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Total Omset Ads</p>
+                        <h4 class="text-2xl font-bold text-slate-800">${formatRp(s.totalOmset)}</h4>
+                    </div>
+                    <div class="w-10 h-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 shadow-lg text-white relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 opacity-10">
+                    <i class="fa-solid fa-sack-dollar text-9xl"></i>
+                </div>
+                <div class="relative z-10">
+                    <p class="text-sm font-medium text-slate-300 mb-1">Net Margin (Keuntungan)</p>
+                    <h4 class="text-3xl font-bold mb-4 ${s.netMargin < 0 ? 'text-red-400' : 'text-emerald-400'}">${formatRp(s.netMargin)}</h4>
+                    <div class="pt-4 border-t border-slate-700/50">
+                        <p class="text-xs text-slate-400 mb-1">Estimasi Dividen (50:50)</p>
+                        <p class="text-lg font-semibold">${formatRp(dividen)} <span class="text-xs font-normal text-slate-400">/ Pemodal</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-800">Biaya Operasional Terakhir</h3>
+                    <button onclick="loadView('pengeluaran')" class="text-sm text-blue-600 hover:underline">Lihat Semua</button>
+                </div>
+                <div class="space-y-3">
+                    ${appState.data.pengeluaran.slice(-3).reverse().map(p => `
+                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500 flex-shrink-0">
+                                    <i class="fa-solid fa-receipt"></i>
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-sm text-slate-800">${p.kategori}</p>
+                                    <p class="text-xs text-slate-500">${p.tanggal} · ${p.penginput}</p>
+                                </div>
+                            </div>
+                            <span class="font-bold text-slate-800 text-sm">${formatRp(p.nominal)}</span>
+                        </div>
+                    `).join('') || '<p class="text-sm text-slate-500 text-center py-4">Belum ada data biaya.</p>'}
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-800">Omset Terakhir</h3>
+                    <button onclick="loadView('omset')" class="text-sm text-blue-600 hover:underline">Lihat Semua</button>
+                </div>
+                <div class="space-y-3">
+                    ${appState.data.omset.slice(-3).reverse().map(o => `
+                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-500 flex-shrink-0">
+                                    <i class="fa-solid fa-money-bill-wave"></i>
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-sm text-slate-800">${o.bulan}</p>
+                                    <p class="text-xs text-slate-500">${o.keterangan}</p>
+                                </div>
+                            </div>
+                            <span class="font-bold text-green-600 text-sm">+${formatRp(o.nominal)}</span>
+                        </div>
+                    `).join('') || '<p class="text-sm text-slate-500 text-center py-4">Belum ada data omset.</p>'}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ============================================================
+//  RENDER: CRUD TABLE
+// ============================================================
+function renderTableCRUD(container, type, title, headers) {
+    const data = appState.data[type];
+    let rowsHtml = '';
+
+    if (data.length === 0) {
+        rowsHtml = `<tr><td colspan="${headers.length + 1}" class="px-6 py-10 text-center text-slate-400">
+            <i class="fa-solid fa-inbox text-3xl mb-2 block"></i>Belum ada data ${title.toLowerCase()}
+        </td></tr>`;
+    } else {
+        [...data].reverse().forEach(item => {
+            let colHtml = '';
+            if (type === 'deposit') {
+                colHtml = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-700">${item.tanggal}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">${item.pemodal}</td>
+                    <td class="px-6 py-4 text-sm text-slate-600 max-w-[200px] truncate">${item.keterangan}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-800 text-right">${formatRp(item.nominal)}</td>`;
+            } else if (type === 'pengeluaran') {
+                const badge = item.kategori.includes('Iklan') ? 'bg-blue-100 text-blue-700'
+                    : item.kategori.includes('Software') ? 'bg-purple-100 text-purple-700'
+                    : item.kategori.includes('Akun')     ? 'bg-amber-100 text-amber-700'
+                    : 'bg-slate-100 text-slate-700';
+                colHtml = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-700">${item.tanggal}</td>
+                    <td class="px-6 py-4 whitespace-nowrap"><span class="px-2.5 py-1 text-xs font-semibold rounded-full ${badge}">${item.kategori}</span></td>
+                    <td class="px-6 py-4 text-sm text-slate-600 max-w-[200px] truncate">${item.keterangan}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600 text-right">${formatRp(item.nominal)}</td>`;
+            } else if (type === 'omset') {
+                colHtml = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">${item.bulan}</td>
+                    <td class="px-6 py-4 text-sm text-slate-600 max-w-[300px] truncate">${item.keterangan}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 text-right">${formatRp(item.nominal)}</td>`;
+            }
+
+            rowsHtml += `
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
+                    ${colHtml}
+                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <button onclick="openForm('${type}','${item.id}')"
+                            class="text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 w-8 h-8 rounded-lg mr-2 transition-colors" title="Edit">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button onclick="confirmDelete('${type}','${item.id}')"
+                            class="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 w-8 h-8 rounded-lg transition-colors" title="Hapus">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+        });
+    }
+
+    container.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800">Tabel ${title}</h3>
+                    <p class="text-sm text-slate-500">Total ${data.length} data tercatat</p>
+                </div>
+                <button onclick="openForm('${type}')"
+                    class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Tambah Data
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
+                            ${headers.map(h => `<th class="px-6 py-4 ${h === 'Nominal' ? 'text-right' : ''}">${h}</th>`).join('')}
+                            <th class="px-6 py-4 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white">${rowsHtml}</tbody>
+                </table>
+            </div>
+        </div>`;
+}
+
+// ============================================================
+//  RENDER: LAPORAN
+// ============================================================
+function renderLaporan(container) {
+    const s = getSummaryData();
+    const dividen = s.netMargin > 0 ? s.netMargin / 2 : 0;
+    container.innerHTML = `
+        <div class="max-w-4xl mx-auto">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+                <div class="p-8 text-center border-b border-slate-200 bg-slate-50">
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2">Laporan Keuangan SOARA.AI</h2>
+                    <p class="text-slate-500">Ringkasan Total Seluruh Transaksi</p>
+                </div>
+                <div class="p-8">
+                    <div class="space-y-4 mb-8">
+                        <div class="flex justify-between items-center p-4 bg-slate-50 rounded-xl">
+                            <span class="font-medium text-slate-600">Total Omset Ads</span>
+                            <span class="font-bold text-lg text-slate-800">${formatRp(s.totalOmset)}</span>
+                        </div>
+                        <div class="flex justify-between items-center p-4 bg-red-50 rounded-xl">
+                            <span class="font-medium text-red-600">Total Biaya Operasional</span>
+                            <span class="font-bold text-lg text-red-600">- ${formatRp(s.totalBiaya)}</span>
+                        </div>
+                        <div class="flex justify-between items-center p-4 bg-slate-800 text-white rounded-xl shadow-md">
+                            <span class="font-medium">Net Margin (Keuntungan)</span>
+                            <span class="font-bold text-xl ${s.netMargin < 0 ? 'text-red-400' : 'text-emerald-400'}">${formatRp(s.netMargin)}</span>
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-200 pt-8">
+                        <h3 class="text-lg font-bold text-slate-800 mb-6 text-center">Pembagian Dividen (50:50)</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            ${['M Mughni Labib', 'M Nurkholis'].map(p => `
+                            <div class="border border-emerald-200 bg-emerald-50 rounded-2xl p-6 text-center">
+                                <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <i class="fa-solid fa-user-tie text-lg"></i>
+                                </div>
+                                <p class="text-sm font-medium text-slate-600 mb-1">Porsi ${p}</p>
+                                <p class="text-2xl font-bold text-emerald-700">${formatRp(dividen)}</p>
+                            </div>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+}
+
+// ============================================================
+//  RENDER: LOG REVISI
+// ============================================================
+function renderLogRevisi(container) {
+    const logs = [...appState.data.logRevisi].reverse();
+    const rowsHtml = logs.length === 0
+        ? `<tr><td colspan="4" class="px-6 py-10 text-center text-slate-400">
+            <i class="fa-solid fa-inbox text-3xl mb-2 block"></i>Belum ada riwayat revisi.
+           </td></tr>`
+        : logs.map(log => `
+            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">${log.timestamp}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <span class="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-semibold">${log.jenis}</span><br>
+                    <span class="text-xs text-slate-500 font-mono mt-1">${log.id_transaksi}</span>
+                </td>
+                <td class="px-6 py-4 text-sm text-slate-700">${log.perubahan}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">Oleh: <b>${log.pengubah}</b></td>
+            </tr>`).join('');
+
+    container.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-200 bg-slate-50/50">
+                <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-clock-rotate-left mr-2 text-slate-400"></i>Riwayat Perubahan</h3>
+                <p class="text-sm text-slate-500">Catatan setiap modifikasi data pada sistem.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
+                            <th class="px-6 py-4">Waktu</th>
+                            <th class="px-6 py-4">Target Revisi</th>
+                            <th class="px-6 py-4">Detail Perubahan</th>
+                            <th class="px-6 py-4">Pengguna</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white">${rowsHtml}</tbody>
+                </table>
+            </div>
+        </div>`;
+}
+
+// ============================================================
+//  FORM (CREATE / EDIT)
+// ============================================================
+function openForm(type, id = null) {
+    document.getElementById('form-type').value = type;
+    document.getElementById('form-id').value   = id || '';
+    document.getElementById('modal-title').textContent = id ? `Revisi ${type.charAt(0).toUpperCase() + type.slice(1)}` : `Input ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+
+    const isEdit   = !!id;
+    const item     = isEdit ? appState.data[type].find(d => d.id === id) : null;
+    const today    = new Date().toISOString().split('T')[0];
+    const monthNow = new Date().toISOString().slice(0, 7);
+
+    document.getElementById('reason-field').classList.toggle('hidden', !isEdit);
+    document.getElementById('edit-reason').required = isEdit;
+
+    let fieldsHtml = '';
+
+    if (type === 'deposit') {
+        fieldsHtml = `
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Tanggal</label>
+                <input type="date" id="input-tanggal" required value="${isEdit ? item.tanggal : today}"
+                    class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Nama Pemodal</label>
+                <select id="input-pemodal" required class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="M Mughni Labib"  ${isEdit && item.pemodal === 'M Mughni Labib'  ? 'selected' : ''}>M Mughni Labib</option>
+                    <option value="M Nurkholis"     ${isEdit && item.pemodal === 'M Nurkholis'     ? 'selected' : ''}>M Nurkholis</option>
+                </select>
+            </div>`;
+    } else if (type === 'pengeluaran') {
+        const cats = ['Biaya Iklan', 'Software/Tools', 'Akun Ads', 'Lainnya'];
+        fieldsHtml = `
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Tanggal</label>
+                <input type="date" id="input-tanggal" required value="${isEdit ? item.tanggal : today}"
+                    class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Kategori Biaya</label>
+                <select id="input-kategori" required class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    ${cats.map(c => `<option value="${c}" ${isEdit && item.kategori === c ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+            </div>`;
+    } else if (type === 'omset') {
+        fieldsHtml = `
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Bulan Omset</label>
+                <input type="month" id="input-bulan" required value="${isEdit ? item.bulan : monthNow}"
+                    class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>`;
+    }
+
+    fieldsHtml += `
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Nominal (Rp)</label>
+            <input type="number" id="input-nominal" required value="${isEdit ? item.nominal : ''}" min="0" step="1000"
+                class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-lg">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Keterangan / Catatan</label>
+            <textarea id="input-keterangan" rows="2" required
+                class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">${isEdit ? item.keterangan : ''}</textarea>
+        </div>`;
+
+    document.getElementById('form-fields').innerHTML = fieldsHtml;
+    document.getElementById('form-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('form-modal').classList.add('hidden');
+    document.getElementById('data-form').reset();
+}
+
+function handleFormSubmit(e) {
+    e.preventDefault();
+    const type   = document.getElementById('form-type').value;
+    const id     = document.getElementById('form-id').value;
+    const isEdit = !!id;
+
+    const formData = {
+        nominal:    parseFloat(document.getElementById('input-nominal').value),
+        keterangan: document.getElementById('input-keterangan').value,
+        penginput:  appState.user.username
+    };
+
+    if (type === 'deposit')     { formData.tanggal = document.getElementById('input-tanggal').value; formData.pemodal   = document.getElementById('input-pemodal').value; }
+    if (type === 'pengeluaran') { formData.tanggal = document.getElementById('input-tanggal').value; formData.kategori  = document.getElementById('input-kategori').value; }
+    if (type === 'omset')       { formData.bulan   = document.getElementById('input-bulan').value; }
+
+    const ts = nowTimestamp();
+
+    if (isEdit) {
+        const idx     = appState.data[type].findIndex(d => d.id === id);
+        const oldData = appState.data[type][idx];
+        const alasan  = document.getElementById('edit-reason').value;
+        appState.data.logRevisi.push({
+            id: genId('LOG'), timestamp: ts, jenis: type.charAt(0).toUpperCase() + type.slice(1),
+            id_transaksi: id,
+            perubahan: `Update | Alasan: ${alasan} | Nominal: ${formatRp(oldData.nominal)} → ${formatRp(formData.nominal)}`,
+            pengubah: appState.user.username
+        });
+        appState.data[type][idx] = { ...oldData, ...formData };
+    } else {
+        const prefix = type === 'deposit' ? 'DEP' : type === 'pengeluaran' ? 'PENG' : 'OMS';
+        appState.data[type].push({ id: genId(prefix), timestamp: ts, ...formData });
+    }
+
+    saveData(appState.data);
+    closeModal();
+    loadView(type);
+    showToast(isEdit ? 'Data berhasil diperbarui!' : 'Data berhasil ditambahkan!');
+}
+
+// ============================================================
+//  DELETE
+// ============================================================
+function confirmDelete(type, id) {
+    appState.deleteTarget = { type, id };
+    document.getElementById('delete-modal').classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.add('hidden');
+    appState.deleteTarget = null;
+}
+
+function executeDelete() {
+    const { type, id } = appState.deleteTarget;
+    appState.data[type] = appState.data[type].filter(d => d.id !== id);
+    appState.data.logRevisi.push({
+        id: genId('LOG'), timestamp: nowTimestamp(),
+        jenis: type.charAt(0).toUpperCase() + type.slice(1),
+        id_transaksi: id, perubahan: 'DATA DIHAPUS', pengubah: appState.user.username
+    });
+    saveData(appState.data);
+    closeDeleteModal();
+    loadView(type);
+    showToast('Data berhasil dihapus.', 'error');
+}
+</script>
+</body>
+</html>
