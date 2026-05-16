@@ -49,6 +49,7 @@
             z-index: 99999;
             transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
             opacity: 0;
+            max-width: 90%;
         }
         #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
         .pb-safe { padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 8px); }
@@ -257,9 +258,9 @@
         <div id="toast-icon-wrapper" class="w-10 h-10 rounded-full flex items-center justify-center bg-emerald-50 flex-shrink-0">
             <i id="toast-icon" class="fa-solid fa-check text-emerald-500 text-xl"></i>
         </div>
-        <div>
+        <div class="flex-1 overflow-hidden">
             <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5" id="toast-title">Sukses</p>
-            <p id="toast-msg" class="text-sm font-bold text-slate-800">Berhasil disimpan!</p>
+            <p id="toast-msg" class="text-sm font-bold text-slate-800 break-words">Berhasil disimpan!</p>
         </div>
     </div>
 </div>
@@ -326,11 +327,11 @@ function showToast(msg, type = 'success') {
     } else {
         icon.className = 'fa-solid fa-exclamation text-red-500 text-xl';
         wrapper.className = 'w-10 h-10 rounded-full flex items-center justify-center bg-red-50 flex-shrink-0';
-        title.textContent = 'PERHATIAN';
+        title.textContent = 'ERROR SUPABASE';
         title.className = 'text-[10px] font-extrabold text-red-500 uppercase tracking-widest mb-0.5';
     }
     toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3000);
+    setTimeout(() => toast.classList.remove('show'), 4000);
 }
 
 function showLoading(msg = 'Memproses...') {
@@ -386,6 +387,14 @@ async function loadAllData() {
             supabaseClient.from('withdraw').select('*').order('timestamp', { ascending: true }),
             supabaseClient.from('log_revisi').select('*').order('timestamp', { ascending: true })
         ]);
+        
+        // Pengecekan Error Eksplisit
+        if (dep.error) throw dep.error;
+        if (peng.error) throw peng.error;
+        if (oms.error) throw oms.error;
+        if (wd.error) throw wd.error;
+        if (log.error) throw log.error;
+
         appState.data.deposit     = dep.data   || [];
         appState.data.pengeluaran = peng.data  || [];
         appState.data.omset       = oms.data   || [];
@@ -394,7 +403,7 @@ async function loadAllData() {
         updateDbStatus(true);
     } catch(e) {
         console.error('[SOARA] Gagal memuat data:', e);
-        showToast('Gagal memuat data dari Supabase!', 'error');
+        showToast(`Gagal Load: ${e.message || 'Cek RLS atau Tabel Database'}`, 'error');
         updateDbStatus(false);
     } finally {
         hideLoading();
@@ -411,7 +420,7 @@ function updateDbStatus(ok) {
         label.textContent = 'Terhubung';
     } else {
         dot.className = 'w-2 h-2 rounded-full bg-red-400';
-        label.textContent = 'Offline';
+        label.textContent = 'Offline / Error';
     }
 }
 
@@ -1021,7 +1030,7 @@ async function handleFormSubmit(e) {
         showToast(isEdit ? 'Data berhasil diperbarui!' : 'Data berhasil ditambahkan!');
     } catch(err) {
         console.error('[SOARA] Gagal simpan:', err);
-        showToast('Gagal menyimpan data! Cek koneksi.', 'error');
+        showToast(`Gagal: ${err.message || 'Cek koneksi/RLS database!'}`, 'error');
     } finally {
         btn.innerHTML = 'Simpan Data';
         btn.disabled  = false;
@@ -1059,7 +1068,7 @@ async function executeDelete() {
         showToast('Data berhasil dihapus.', 'error');
     } catch(err) {
         console.error('[SOARA] Gagal hapus:', err);
-        showToast('Gagal menghapus data!', 'error');
+        showToast(`Gagal: ${err.message || 'Cek koneksi/RLS database!'}`, 'error');
     } finally {
         btn.innerHTML = 'Ya, Hapus';
         btn.disabled  = false;
